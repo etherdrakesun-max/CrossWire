@@ -16,6 +16,10 @@ const nextConfig = {
   },
   // Exclude contracts and scripts from the build
   excludeDefaultMomentLocales: true,
+  experimental: {
+    workerThreads: false,
+    cpus: 1,
+  },
 }
 
 export default nextConfig

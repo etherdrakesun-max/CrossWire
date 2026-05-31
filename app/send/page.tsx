@@ -13,6 +13,7 @@ import {
   getExplorerTxUrl,
 } from '@/lib/arc-config'
 import { crossWireRouterAbi, erc20Abi } from '@/lib/contracts'
+import { Send, FileText, Unlock, Zap, CheckCircle, Plug, Link as LinkIcon, Info, FileSignature } from 'lucide-react'
 
 const PURPOSE_CODES = [
   { code: 0, label: 'General Payment' },
@@ -175,7 +176,10 @@ export default function SendPage() {
       <div className="main-content">
         <Topbar />
         <div className="page-container animate-fade-in">
-          <h1><span className="page-icon">💸</span>Send Payment</h1>
+          <h1 className="flex items-center gap-3">
+            <Send size={32} strokeWidth={1.5} className="text-primary" />
+            Send Payment
+          </h1>
           <p className="text-muted text-sm" style={{ marginBottom: '8px' }}>
             Execute a USDC wire transfer via CrossWireRouter on Arc Testnet
           </p>
@@ -183,22 +187,22 @@ export default function SendPage() {
           {/* Pipeline Steps */}
           <div className="pipeline">
             <div className={`pipeline-step ${step === 'form' ? 'active' : ['approve', 'confirm', 'executing', 'success'].includes(step) ? 'completed' : ''}`}>
-              <div className="pipeline-dot">📝</div>
+              <div className="pipeline-dot"><FileText size={16} strokeWidth={1.5} /></div>
               <div className="pipeline-label">Enter Details</div>
             </div>
             <div className={`pipeline-line ${['approve', 'confirm', 'executing', 'success'].includes(step) ? 'completed' : ''}`} />
             <div className={`pipeline-step ${step === 'approve' ? 'active' : ['confirm', 'executing', 'success'].includes(step) ? 'completed' : ''}`}>
-              <div className="pipeline-dot">🔓</div>
+              <div className="pipeline-dot"><Unlock size={16} strokeWidth={1.5} /></div>
               <div className="pipeline-label">Approve USDC</div>
             </div>
             <div className={`pipeline-line ${['confirm', 'executing', 'success'].includes(step) ? 'completed' : ''}`} />
             <div className={`pipeline-step ${step === 'executing' ? 'active' : step === 'success' ? 'completed' : ''}`}>
-              <div className="pipeline-dot">⚡</div>
+              <div className="pipeline-dot"><Zap size={16} strokeWidth={1.5} /></div>
               <div className="pipeline-label">Execute Wire</div>
             </div>
             <div className={`pipeline-line ${step === 'success' ? 'completed' : ''}`} />
             <div className={`pipeline-step ${step === 'success' ? 'completed' : ''}`}>
-              <div className="pipeline-dot">✅</div>
+              <div className="pipeline-dot"><CheckCircle size={16} strokeWidth={1.5} /></div>
               <div className="pipeline-label">Settled</div>
             </div>
           </div>
@@ -265,12 +269,16 @@ export default function SendPage() {
                 </div>
 
                 <button
-                  className="btn primary lg"
+                  className="btn primary lg flex items-center justify-center gap-2"
                   onClick={handleSubmit}
                   disabled={!isConnected}
                   style={{ width: '100%', marginTop: '8px' }}
                 >
-                  {isConnected ? '⚡ Execute Wire Transfer' : '🔌 Connect Wallet First'}
+                  {isConnected ? (
+                    <><Zap size={16} strokeWidth={1.5} /> Execute Wire Transfer</>
+                  ) : (
+                    <><Plug size={16} strokeWidth={1.5} /> Connect Wallet First</>
+                  )}
                 </button>
               </div>
             </div>
@@ -280,8 +288,10 @@ export default function SendPage() {
           {(step === 'approve' || step === 'confirm' || step === 'executing') && (
             <div className="card animate-slide-up" style={{ maxWidth: '540px', marginTop: '24px' }}>
               <div className="card-body" style={{ textAlign: 'center', padding: '48px' }}>
-                <div style={{ fontSize: '48px', marginBottom: '16px', animation: 'pulse 1.5s infinite' }}>
-                  {step === 'approve' ? '🔓' : step === 'confirm' ? '📋' : '⚡'}
+                <div className="flex justify-center mb-4 text-accent" style={{ animation: 'pulse 1.5s infinite' }}>
+                  {step === 'approve' && <Unlock size={48} strokeWidth={1} />}
+                  {step === 'confirm' && <FileSignature size={48} strokeWidth={1} />}
+                  {step === 'executing' && <Zap size={48} strokeWidth={1} />}
                 </div>
                 <h3 style={{ margin: '0 0 8px' }}>
                   {step === 'approve' && 'Approving USDC...'}
@@ -301,7 +311,9 @@ export default function SendPage() {
           {step === 'success' && (
             <div className="card animate-slide-up" style={{ maxWidth: '540px', marginTop: '24px' }}>
               <div className="card-body" style={{ textAlign: 'center', padding: '32px' }}>
-                <div style={{ fontSize: '48px', marginBottom: '12px' }}>✅</div>
+                <div className="flex justify-center mb-4 text-success">
+                  <CheckCircle size={48} strokeWidth={1} />
+                </div>
                 <h3 style={{ margin: '0 0 4px' }}>Wire Transfer Settled</h3>
                 <p className="text-muted text-sm" style={{ marginBottom: '20px' }}>
                   {amount} USDC sent to {recipient.slice(0, 6)}...{recipient.slice(-4)}
@@ -309,23 +321,22 @@ export default function SendPage() {
 
                 {wireId && (
                   <div style={{ marginBottom: '12px' }}>
-                    <span className="badge purple" style={{ fontSize: '14px', padding: '4px 12px' }}>
+                    <span className="badge gray text-mono" style={{ fontSize: '14px', padding: '4px 12px' }}>
                       Wire ID: #{wireId}
                     </span>
                   </div>
                 )}
 
-                <div className="callout green" style={{ textAlign: 'left', marginBottom: '16px' }}>
-                  <span className="callout-icon">🔗</span>
+                <div className="callout" style={{ textAlign: 'left', marginBottom: '16px', borderColor: 'var(--success)', background: 'var(--success-bg)' }}>
+                  <span className="callout-icon text-success"><LinkIcon size={20} strokeWidth={1.5} /></span>
                   <div>
-                    <strong>On-Chain Proof</strong>
-                    <p className="text-sm">
+                    <strong className="text-success">On-Chain Proof</strong>
+                    <p className="text-sm mt-1">
                       <a
                         href={getExplorerTxUrl(txHash)}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="explorer-link"
-                        style={{ fontSize: '13px' }}
+                        className="explorer-link text-mono"
                       >
                         {txHash.slice(0, 20)}...{txHash.slice(-8)} ↗
                       </a>
@@ -342,11 +353,11 @@ export default function SendPage() {
 
           {/* Fee Info */}
           <div className="callout" style={{ marginTop: '24px' }}>
-            <span className="callout-icon">ℹ️</span>
+            <span className="callout-icon"><Info size={20} strokeWidth={1.5} /></span>
             <div>
               <strong>Settlement Details</strong>
-              <p className="text-muted text-sm">
-                Gas fees are paid in USDC (Arc&apos;s native token). Transfers settle with deterministic finality in &lt;1 second.
+              <p className="text-muted text-sm mt-1">
+                Gas fees are paid in USDC (Arc's native token). Transfers settle with deterministic finality in &lt;1 second.
                 No confirmation blocks required. Wire IDs and references are stored immutably on-chain.
               </p>
             </div>

@@ -14,6 +14,7 @@ import {
   getExplorerTxUrl,
 } from '@/lib/arc-config'
 import { crossWireRouterAbi, erc20Abi } from '@/lib/contracts'
+import { Rows, Upload, Plus, Zap, FileText, CheckCircle, Clock, X } from 'lucide-react'
 
 interface BatchRow {
   recipient: string
@@ -159,7 +160,10 @@ export default function BatchPage() {
       <div className="main-content">
         <Topbar />
         <div className="page-container animate-fade-in">
-          <h1><span className="page-icon">📋</span>Batch Wire Transfer</h1>
+          <h1 className="flex items-center gap-3">
+            <Rows size={32} strokeWidth={1.5} className="text-primary" />
+            Batch Wire Transfer
+          </h1>
           <p className="text-muted text-sm" style={{ marginBottom: '24px' }}>
             Upload CSV or manually add multiple wire transfers — executed in a single on-chain transaction
           </p>
@@ -174,10 +178,10 @@ export default function BatchPage() {
               style={{ display: 'none' }}
             />
             <button className="btn" onClick={() => fileInputRef.current?.click()}>
-              📂 Upload CSV
+              <Upload size={16} strokeWidth={1.5} /> Upload CSV
             </button>
             <button className="btn" onClick={addManualRow}>
-              ➕ Add Row
+              <Plus size={16} strokeWidth={1.5} /> Add Row
             </button>
             {rows.length > 0 && (
               <button
@@ -185,20 +189,24 @@ export default function BatchPage() {
                 onClick={handleBatchExecute}
                 disabled={isProcessing || !isConnected || !isContractDeployed}
               >
-                {isProcessing ? '⏳ Processing...' : `⚡ Execute ${rows.length} Wires`}
+                {isProcessing ? (
+                  <><Clock size={16} strokeWidth={1.5} /> Processing...</>
+                ) : (
+                  <><Zap size={16} strokeWidth={1.5} /> Execute {rows.length} Wires</>
+                )}
               </button>
             )}
           </div>
 
           {/* CSV Format Help */}
           <div className="callout" style={{ marginBottom: '20px' }}>
-            <span className="callout-icon">📄</span>
+            <span className="callout-icon"><FileText size={20} strokeWidth={1.5} /></span>
             <div>
               <strong>CSV Format</strong>
-              <p className="text-muted text-sm">
+              <p className="text-muted text-sm mt-1">
                 Columns: <code className="text-mono">recipient, amount, purposeCode, reference</code>
               </p>
-              <p className="text-muted text-sm" style={{ marginTop: '4px' }}>
+              <p className="text-muted text-sm mt-1">
                 Example: <code className="text-mono">0xabc...def, 100.00, 2, INV-2024-001</code>
               </p>
             </div>
@@ -222,7 +230,7 @@ export default function BatchPage() {
                 <tbody>
                   {rows.map((row, i) => (
                     <tr key={i}>
-                      <td>{i + 1}</td>
+                      <td className="text-muted">{i + 1}</td>
                       <td>
                         <input
                           className="input-notion"
@@ -230,7 +238,7 @@ export default function BatchPage() {
                           onChange={(e) => updateRow(i, 'recipient', e.target.value)}
                           placeholder="0x..."
                           disabled={row.status !== 'pending'}
-                          style={{ fontSize: '12px', fontFamily: 'monospace' }}
+                          style={{ fontFamily: 'monospace' }}
                         />
                       </td>
                       <td>
@@ -250,7 +258,7 @@ export default function BatchPage() {
                           value={row.purposeCode}
                           onChange={(e) => updateRow(i, 'purposeCode', Number(e.target.value))}
                           disabled={row.status !== 'pending'}
-                          style={{ width: '80px', fontSize: '12px' }}
+                          style={{ width: '80px' }}
                         >
                           {[0, 1, 2, 3, 4, 5, 6, 7].map((c) => (
                             <option key={c} value={c}>{c}</option>
@@ -264,7 +272,7 @@ export default function BatchPage() {
                           onChange={(e) => updateRow(i, 'reference', e.target.value)}
                           placeholder="REF..."
                           disabled={row.status !== 'pending'}
-                          style={{ width: '120px', fontSize: '12px' }}
+                          style={{ width: '120px' }}
                         />
                       </td>
                       <td>
@@ -278,7 +286,9 @@ export default function BatchPage() {
                       </td>
                       <td>
                         {row.status === 'pending' && (
-                          <button className="btn ghost sm" onClick={() => removeRow(i)}>✕</button>
+                          <button className="btn ghost" style={{ padding: '4px' }} onClick={() => removeRow(i)}>
+                            <X size={16} strokeWidth={1.5} />
+                          </button>
                         )}
                       </td>
                     </tr>
@@ -287,7 +297,7 @@ export default function BatchPage() {
               </table>
 
               {/* Summary */}
-              <div className="stat-grid" style={{ marginTop: '16px' }}>
+              <div className="stat-grid" style={{ marginTop: '24px' }}>
                 <div className="stat-card">
                   <div className="stat-label">Total Wires</div>
                   <div className="stat-value">{rows.length}</div>
@@ -301,12 +311,12 @@ export default function BatchPage() {
               </div>
 
               {batchTxHash && (
-                <div className="callout green" style={{ marginTop: '16px' }}>
-                  <span className="callout-icon">✅</span>
+                <div className="callout" style={{ marginTop: '24px', borderColor: 'var(--success)', background: 'var(--success-bg)' }}>
+                  <span className="callout-icon text-success"><CheckCircle size={20} strokeWidth={1.5} /></span>
                   <div>
-                    <strong>Batch Executed</strong>
-                    <p>
-                      <a href={getExplorerTxUrl(batchTxHash)} target="_blank" rel="noopener noreferrer" className="explorer-link">
+                    <strong className="text-success">Batch Executed</strong>
+                    <p className="mt-1">
+                      <a href={getExplorerTxUrl(batchTxHash)} target="_blank" rel="noopener noreferrer" className="explorer-link text-mono">
                         {batchTxHash.slice(0, 20)}...{batchTxHash.slice(-8)} ↗
                       </a>
                     </p>
@@ -316,7 +326,9 @@ export default function BatchPage() {
             </>
           ) : (
             <div className="empty-state">
-              <div className="empty-state-icon">📋</div>
+              <div className="empty-state-icon flex justify-center mb-4">
+                <Rows size={32} strokeWidth={1.25} />
+              </div>
               <div className="empty-state-text">Upload a CSV file or add rows manually to start a batch wire transfer.</div>
             </div>
           )}

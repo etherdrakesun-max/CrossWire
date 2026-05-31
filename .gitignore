@@ -17,10 +17,12 @@ node_modules/
 .env.development.local
 .env.test.local
 .env.production.local
-*.env
+.env.*
+!.env.example
 
 # Cache
 .cache/
+cache/
 
 # Editor
 .vscode/*
@@ -40,6 +42,7 @@ out/
 .next/
 .vercel/
 .turbo/
+artifacts/
 
 # Custom / Existing Rules
 *.tsbuildinfo

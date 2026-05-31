@@ -6,6 +6,7 @@ import { formatUnits } from 'viem'
 import Sidebar from '../components/Sidebar'
 import Topbar from '../components/Topbar'
 import { CROSSWIRE_CONTRACT_ADDRESS, getExplorerTxUrl } from '@/lib/arc-config'
+import { History, Clock, ListTree } from 'lucide-react'
 
 interface WireEvent {
   wireId: string
@@ -134,7 +135,10 @@ export default function HistoryPage() {
       <div className="main-content">
         <Topbar />
         <div className="page-container animate-fade-in">
-          <h1><span className="page-icon">🗃️</span>Transaction Log</h1>
+          <h1 className="flex items-center gap-3">
+            <History size={32} strokeWidth={1.5} className="text-primary" />
+            Transaction Log
+          </h1>
           <p className="text-muted text-sm" style={{ marginBottom: '24px' }}>
             On-chain event history from CrossWireRouter — verified on Arcscan
           </p>
@@ -154,12 +158,16 @@ export default function HistoryPage() {
 
           {loading ? (
             <div className="empty-state">
-              <div className="empty-state-icon" style={{ animation: 'pulse 1.5s infinite' }}>⏳</div>
+              <div className="empty-state-icon flex justify-center mb-4" style={{ animation: 'pulse 1.5s infinite' }}>
+                <Clock size={32} strokeWidth={1.25} />
+              </div>
               <div className="empty-state-text">Loading on-chain events...</div>
             </div>
           ) : filteredEvents.length === 0 ? (
             <div className="empty-state">
-              <div className="empty-state-icon">🗃️</div>
+              <div className="empty-state-icon flex justify-center mb-4">
+                <ListTree size={32} strokeWidth={1.25} />
+              </div>
               <div className="empty-state-text">
                 {CROSSWIRE_CONTRACT_ADDRESS === '0x0000000000000000000000000000000000000000'
                   ? 'Contract not deployed yet. Deploy CrossWireRouter to Arc Testnet first.'
@@ -182,7 +190,7 @@ export default function HistoryPage() {
                 {filteredEvents.map((evt, i) => (
                   <tr key={`${evt.wireId}-${evt.type}-${i}`} className="animate-fade-in">
                     <td>
-                      <span className="badge gray">#{evt.wireId}</span>
+                      <span className="badge gray text-mono">#{evt.wireId}</span>
                     </td>
                     <td className="text-mono">{truncAddr(evt.sender)}</td>
                     <td className="text-mono">{truncAddr(evt.recipient)}</td>
@@ -199,7 +207,7 @@ export default function HistoryPage() {
                         href={getExplorerTxUrl(evt.txHash)}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="explorer-link"
+                        className="explorer-link text-mono"
                       >
                         {evt.txHash.slice(0, 10)}… ↗
                       </a>

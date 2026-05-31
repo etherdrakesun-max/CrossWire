@@ -1,252 +1,313 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useAccount, usePublicClient } from 'wagmi'
-import { formatUnits } from 'viem'
-import Sidebar from './components/Sidebar'
-import Topbar from './components/Topbar'
-import { USDC_ADDRESS, CROSSWIRE_CONTRACT_ADDRESS, getExplorerAddressUrl } from '@/lib/arc-config'
-import { erc20Abi, crossWireRouterAbi } from '@/lib/contracts'
+import Link from 'next/link'
+import Header from './components/Header'
+import Footer from './components/Footer'
+import { ArrowRight, CheckCircle2, Shield, Activity, Rows, Send, Layers, Coins, Terminal } from 'lucide-react'
 
-export default function DashboardPage() {
-  const { address, isConnected } = useAccount()
-  const publicClient = usePublicClient()
+interface LogEntry {
+  time: string
+  text: string
+  status: 'info' | 'success' | 'warning'
+}
 
-  const [balance, setBalance] = useState<string>('0.00')
-  const [wireCount, setWireCount] = useState<string>('0')
-  const [totalVolume, setTotalVolume] = useState<string>('0.00')
-  const [recentWires, setRecentWires] = useState<any[]>([])
+export default function LandingPage() {
+  // CCTP Simulation State
+  const [simStep, setSimStep] = useState<number>(0)
+  const [simLogs, setSimLogs] = useState<LogEntry[]>([
+    { time: '00:00.00', text: 'Simulator ready. Click "Run CCTP Simulation" to begin.', status: 'info' }
+  ])
+  const [isSimulating, setIsSimulating] = useState<boolean>(false)
+  const [waitlistEmail, setWaitlistEmail] = useState<string>('')
+  const [waitlistSubmitted, setWaitlistSubmitted] = useState<boolean>(false)
 
-  // Fetch USDC balance
-  useEffect(() => {
-    if (!address || !publicClient) return
-
-    const fetchData = async () => {
-      try {
-        // Get USDC balance
-        const bal = await publicClient.readContract({
-          address: USDC_ADDRESS,
-          abi: erc20Abi,
-          functionName: 'balanceOf',
-          args: [address],
-        })
-        setBalance(formatUnits(bal as bigint, 6))
-
-        // Get contract stats (if deployed)
-        if (CROSSWIRE_CONTRACT_ADDRESS !== '0x0000000000000000000000000000000000000000') {
-          try {
-            const stats = await publicClient.readContract({
-              address: CROSSWIRE_CONTRACT_ADDRESS,
-              abi: crossWireRouterAbi,
-              functionName: 'getStats',
-            }) as [bigint, bigint]
-            setWireCount(stats[0].toString())
-            setTotalVolume(formatUnits(stats[1], 6))
-          } catch { /* Contract may not be deployed yet */ }
-
-          // Fetch recent WireExecuted events
-          try {
-            const logs = await publicClient.getLogs({
-              address: CROSSWIRE_CONTRACT_ADDRESS,
-              event: {
-                type: 'event',
-                name: 'WireExecuted',
-                inputs: [
-                  { indexed: true, name: 'wireId', type: 'uint256' },
-                  { indexed: true, name: 'sender', type: 'address' },
-                  { indexed: true, name: 'recipient', type: 'address' },
-                  { indexed: false, name: 'amount', type: 'uint256' },
-                  { indexed: false, name: 'refHash', type: 'bytes32' },
-                ],
-              },
-              fromBlock: 0n,
-              toBlock: 'latest',
-            })
-            setRecentWires(logs.slice(-10).reverse())
-          } catch { /* Events may not exist yet */ }
-        }
-      } catch (err) {
-        console.error('Dashboard fetch error:', err)
-      }
+  // Simulation Logic
+  const runSimulation = () => {
+    if (isSimulating) return
+    setIsSimulating(true)
+    setSimStep(1)
+    
+    const now = () => {
+      const d = new Date()
+      return `${String(d.getMinutes()).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}.${String(Math.floor(d.getMilliseconds() / 10)).padStart(2, '0')}`
     }
 
-    fetchData()
-    const interval = setInterval(fetchData, 15000) // Refresh every 15s
-    return () => clearInterval(interval)
-  }, [address, publicClient])
+    setSimLogs([
+      { time: now(), text: 'Starting cross-chain wire simulation...', status: 'info' },
+      { time: now(), text: 'Parameters: $10,000 USDC | Source: Arbitrum Sepolia | Destination: Arc Testnet', status: 'info' },
+      { time: now(), text: 'Initiating Circle CCTP transfer. Approving router...', status: 'info' },
+    ])
+
+    // Step 1: Burn
+    setTimeout(() => {
+      setSimStep(2)
+      setSimLogs(prev => [
+        ...prev,
+        { time: now(), text: 'Burn transaction confirmed on Arbitrum Sepolia (Tx: 0x3a9f...b271)', status: 'success' },
+        { time: now(), text: 'Waiting for Circle Attestation signatures...', status: 'warning' },
+      ])
+    }, 2000)
+
+    // Step 2: Attestation
+    setTimeout(() => {
+      setSimStep(3)
+      setSimLogs(prev => [
+        ...prev,
+        { time: now(), text: 'Circle Attestation received successfully!', status: 'success' },
+        { time: now(), text: 'Submitting mint transaction on Arc Testnet...', status: 'info' },
+      ])
+    }, 4000)
+
+    // Step 3: Mint & Settle
+    setTimeout(() => {
+      setSimStep(4)
+      setSimLogs(prev => [
+        ...prev,
+        { time: now(), text: 'USDC Minted on Arc Testnet (Tx: 0x82d1...c99a)', status: 'success' },
+        { time: now(), text: 'ISO 20022 wire metadata attached: Purpose Code [GDDS]', status: 'info' },
+        { time: now(), text: 'Cross-border Wire Transfer Settled in 0.86 seconds! (Finality: Deterministic)', status: 'success' },
+      ])
+      setIsSimulating(false)
+    }, 6000)
+  }
+
+  // Reset simulator
+  const resetSimulation = () => {
+    setSimStep(0)
+    setSimLogs([{ time: '00:00.00', text: 'Simulator reset. Ready.', status: 'info' }])
+    setIsSimulating(false)
+  }
+
+  const handleWaitlist = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!waitlistEmail) return
+    setWaitlistSubmitted(true)
+  }
 
   return (
-    <div className="layout-wrapper">
-      <Sidebar />
-      <div className="main-content">
-        <Topbar />
-        <div className="page-container animate-fade-in">
-          <h1><span className="page-icon">📊</span>Dashboard</h1>
-          <p className="text-muted text-sm" style={{ marginBottom: '24px' }}>
-            Real-time overview of CrossWire operations on Arc Testnet
+    <div className="flex flex-col min-h-screen" style={{ background: 'var(--bg-primary)' }}>
+      <Header />
+
+      <main className="flex-grow">
+        {/* Hero Section */}
+        <section className="hero-wrapper">
+          <div className="hero-glow" />
+          <div className="hero-badge">
+            <Activity size={12} strokeWidth={2} className="text-success animate-pulse" />
+            Arc Testnet Active
+          </div>
+          <h1 className="hero-title">
+            Professional Wire Transfers <br />
+            Settled in Seconds.
+          </h1>
+          <p className="hero-subtitle">
+            Replace SWIFT delays with stablecoin rails. High-value USDC cross-border settlement with sub-second deterministic finality, multi-sig compliance, and full on-chain audit trail on Arc.
           </p>
-
-          {/* Stats Grid */}
-          <div className="stat-grid">
-            <div className="stat-card">
-              <div className="stat-label">USDC Balance</div>
-              <div className="stat-value">${Number(balance).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-              <div className="stat-sub">Arc Testnet</div>
-            </div>
-            <div className="stat-card">
-              <div className="stat-label">Total Wires</div>
-              <div className="stat-value">{wireCount}</div>
-              <div className="stat-sub">On-chain verified</div>
-            </div>
-            <div className="stat-card">
-              <div className="stat-label">Volume Settled</div>
-              <div className="stat-value">${Number(totalVolume).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-              <div className="stat-sub">USDC on Arc</div>
-            </div>
-            <div className="stat-card">
-              <div className="stat-label">Finality</div>
-              <div className="stat-value">&lt;1s</div>
-              <div className="stat-sub">Deterministic</div>
-            </div>
+          <div className="hero-ctas">
+            <Link href="/dashboard" className="btn primary">
+              Try Live Demo <ArrowRight size={16} />
+            </Link>
+            <Link href="/docs" className="btn">
+              Explore Docs
+            </Link>
           </div>
 
-          {/* Connection Status */}
-          {!isConnected && (
-            <div className="callout yellow" style={{ marginTop: '24px' }}>
-              <span className="callout-icon">⚠️</span>
-              <div>
-                <strong>Wallet Not Connected</strong>
-                <p className="text-muted text-sm">Connect your wallet using the sidebar to view live on-chain data.</p>
-              </div>
+          <div className="hero-preview">
+            <div className="hero-preview-header">
+              <div className="dot-red"></div>
+              <div className="dot-yellow"></div>
+              <div className="dot-green"></div>
+              <span className="text-xs text-muted text-mono" style={{ marginLeft: '12px' }}>crosswire.router - CCTP Engine</span>
             </div>
-          )}
+            
+            {/* Embedded Live Simulation visual */}
+            <div className="simulator-container" style={{ border: 'none', background: 'transparent', margin: 0, padding: '24px 16px' }}>
+              <div className="simulator-pipeline">
+                <div className={`simulator-step ${simStep >= 1 ? 'active' : ''} ${simStep > 1 ? 'completed' : ''}`}>
+                  <div className="simulator-dot"></div>
+                  <span className="simulator-label">1. Burn</span>
+                </div>
+                <div className={`simulator-line ${simStep > 1 ? 'completed' : ''}`}></div>
+                <div className={`simulator-step ${simStep >= 2 ? 'active' : ''} ${simStep > 2 ? 'completed' : ''}`}>
+                  <div className="simulator-dot"></div>
+                  <span className="simulator-label">2. Attest</span>
+                </div>
+                <div className={`simulator-line ${simStep > 2 ? 'completed' : ''}`}></div>
+                <div className={`simulator-step ${simStep >= 3 ? 'active' : ''} ${simStep > 3 ? 'completed' : ''}`}>
+                  <div className="simulator-dot"></div>
+                  <span className="simulator-label">3. Mint</span>
+                </div>
+                <div className={`simulator-line ${simStep > 3 ? 'completed' : ''}`}></div>
+                <div className={`simulator-step ${simStep >= 4 ? 'active' : ''} ${simStep > 4 ? 'completed' : ''}`}>
+                  <div className="simulator-dot"></div>
+                  <span className="simulator-label">4. Settled</span>
+                </div>
+              </div>
 
-          {/* Circle Products Info */}
-          <h2>Circle Products Integrated</h2>
-          <div className="integration-grid">
-            <div className="integration-card">
-              <span className="integration-icon">💵</span>
-              <div>
-                <div className="integration-name">USDC on Arc</div>
-                <div className="integration-desc">Native gas token + ERC-20 settlement. 6-decimal precision.</div>
-                <span className="badge green" style={{ marginTop: '6px' }}>Active</span>
-              </div>
-            </div>
-            <div className="integration-card">
-              <span className="integration-icon">📡</span>
-              <div>
-                <div className="integration-name">App Kit — Send</div>
-                <div className="integration-desc">Same-chain USDC transfers via Circle SDK.</div>
-                <span className="badge green" style={{ marginTop: '6px' }}>Active</span>
-              </div>
-            </div>
-            <div className="integration-card">
-              <span className="integration-icon">🌉</span>
-              <div>
-                <div className="integration-name">App Kit — Bridge (CCTP)</div>
-                <div className="integration-desc">Cross-chain USDC via Circle Transfer Protocol.</div>
-                <span className="badge green" style={{ marginTop: '6px' }}>Active</span>
-              </div>
-            </div>
-            <div className="integration-card">
-              <span className="integration-icon">🔄</span>
-              <div>
-                <div className="integration-name">App Kit — Swap</div>
-                <div className="integration-desc">USDC↔EURC conversion via StableFX.</div>
-                <span className="badge blue" style={{ marginTop: '6px' }}>Available</span>
-              </div>
-            </div>
-            <div className="integration-card">
-              <span className="integration-icon">⚖️</span>
-              <div>
-                <div className="integration-name">Smart Contract Platform</div>
-                <div className="integration-desc">CrossWireRouter deployed on Arc Testnet.</div>
-                <span className="badge green" style={{ marginTop: '6px' }}>Deployed</span>
-              </div>
-            </div>
-            <div className="integration-card">
-              <span className="integration-icon">🔐</span>
-              <div>
-                <div className="integration-name">RainbowKit Wallet</div>
-                <div className="integration-desc">Multi-wallet connection with WalletConnect.</div>
-                <span className="badge green" style={{ marginTop: '6px' }}>Active</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Recent Transactions */}
-          <h2>Recent Transactions</h2>
-          {recentWires.length === 0 ? (
-            <div className="empty-state">
-              <div className="empty-state-icon">🗃️</div>
-              <div className="empty-state-text">No transactions yet. Send your first wire transfer to see live on-chain data.</div>
-            </div>
-          ) : (
-            <table className="database-table">
-              <thead>
-                <tr>
-                  <th>Wire ID</th>
-                  <th>Recipient</th>
-                  <th>Amount</th>
-                  <th>Tx Hash</th>
-                </tr>
-              </thead>
-              <tbody>
-                {recentWires.map((log: any, i: number) => (
-                  <tr key={i} className="animate-fade-in">
-                    <td>
-                      <span className="badge gray">#{log.args?.wireId?.toString() || '?'}</span>
-                    </td>
-                    <td className="text-mono">
-                      {log.args?.recipient
-                        ? `${log.args.recipient.slice(0, 6)}...${log.args.recipient.slice(-4)}`
-                        : '—'}
-                    </td>
-                    <td>
-                      <strong>
-                        {log.args?.amount
-                          ? `$${Number(formatUnits(log.args.amount, 6)).toLocaleString('en-US', { minimumFractionDigits: 2 })}`
-                          : '—'}
-                      </strong>
-                      <span className="text-muted text-xs"> USDC</span>
-                    </td>
-                    <td>
-                      <a
-                        href={`https://testnet.arcscan.app/tx/${log.transactionHash}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="explorer-link"
-                      >
-                        {log.transactionHash?.slice(0, 10)}… ↗
-                      </a>
-                    </td>
-                  </tr>
+              <div className="simulator-logs">
+                {simLogs.map((log, index) => (
+                  <div key={index} className="simulator-log-line">
+                    <span className="log-time">[{log.time}]</span>
+                    <span className={log.status === 'success' ? 'log-success' : log.status === 'warning' ? 'text-warning' : ''}>
+                      {log.text}
+                    </span>
+                  </div>
                 ))}
-              </tbody>
-            </table>
-          )}
+              </div>
 
-          {/* Contract Info */}
-          {CROSSWIRE_CONTRACT_ADDRESS !== '0x0000000000000000000000000000000000000000' && (
-            <div className="callout" style={{ marginTop: '24px' }}>
-              <span className="callout-icon">📜</span>
-              <div>
-                <strong>CrossWireRouter Contract</strong>
-                <p className="text-sm">
-                  <a
-                    href={getExplorerAddressUrl(CROSSWIRE_CONTRACT_ADDRESS)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="explorer-link"
-                  >
-                    {CROSSWIRE_CONTRACT_ADDRESS} ↗
-                  </a>
-                </p>
+              <div className="flex gap-3 justify-between">
+                <button 
+                  onClick={runSimulation} 
+                  disabled={isSimulating || simStep === 4}
+                  className="btn primary text-sm"
+                >
+                  Run CCTP Simulation
+                </button>
+                {(simStep > 0 && !isSimulating) && (
+                  <button onClick={resetSimulation} className="btn ghost text-sm">
+                    Reset
+                  </button>
+                )}
               </div>
             </div>
-          )}
-        </div>
-      </div>
+          </div>
+        </section>
+
+        {/* Social Proof Partners */}
+        <section style={{ borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)', padding: '32px 24px', background: 'var(--surface)' }}>
+          <div style={{ maxWidth: '1000px', margin: '0 auto', textAlign: 'center' }}>
+            <p className="text-xs text-muted" style={{ marginBottom: '20px', letterSpacing: '0.05em' }}>INTEGRATED PROTOCOLS & NETWORKS</p>
+            <div className="flex justify-between items-center gap-4 flex-wrap" style={{ opacity: 0.7, padding: '0 20px' }}>
+              <span className="text-mono font-semibold text-lg text-muted">Circle CCTP</span>
+              <span className="text-mono font-semibold text-lg text-muted">Arc Chain</span>
+              <span className="text-mono font-semibold text-lg text-muted">USDC</span>
+              <span className="text-mono font-semibold text-lg text-muted">Arbitrum</span>
+              <span className="text-mono font-semibold text-lg text-muted">Base</span>
+              <span className="text-mono font-semibold text-lg text-muted">Wagmi</span>
+            </div>
+          </div>
+        </section>
+
+        {/* Problem vs Solution Comparison */}
+        <section className="comparison-section">
+          <div style={{ textAlign: 'center', marginBottom: '40px' }}>
+            <h2 style={{ fontSize: '32px' }}>SWIFT Network vs. CrossWire Rails</h2>
+            <p className="text-muted">Legacy cross-border systems cost too much and take days. We settle instantly.</p>
+          </div>
+
+          <table className="comp-table">
+            <thead>
+              <tr>
+                <th>Parameters</th>
+                <th>Traditional SWIFT</th>
+                <th>CrossWire Protocol</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>Settlement Speed</strong></td>
+                <td className="text-muted">1 to 5 business days</td>
+                <td className="text-success font-semibold">Sub-second deterministic finality (&lt;1s)</td>
+              </tr>
+              <tr>
+                <td><strong>Intermediaries</strong></td>
+                <td className="text-muted">3-5 correspondent banks</td>
+                <td className="text-success font-semibold">Zero (Direct P2P smart contracts)</td>
+              </tr>
+              <tr>
+                <td><strong>Transaction Fees</strong></td>
+                <td className="text-muted">$30 - $50 flat fee + hidden FX markups</td>
+                <td className="text-success font-semibold">Fraction of a cent (USDC native gas on Arc)</td>
+              </tr>
+              <tr>
+                <td><strong>Compliance & Security</strong></td>
+                <td className="text-muted">Manual, paperwork, delayed alerts</td>
+                <td className="text-success font-semibold">On-chain Multi-sig (2-of-3) & Immutable Audit logs</td>
+              </tr>
+              <tr>
+                <td><strong>Data Standard</strong></td>
+                <td className="text-muted">SWIFT MT/MX messages</td>
+                <td className="text-success font-semibold">ISO 20022 compliant purpose metadata</td>
+              </tr>
+            </tbody>
+          </table>
+        </section>
+
+        {/* Bento Grid: Core Features */}
+        <section className="bento-wrapper" style={{ borderTop: '1px solid var(--border)', paddingTop: '80px' }}>
+          <div style={{ textAlign: 'center', marginBottom: '48px' }}>
+            <h2 style={{ fontSize: '32px' }}>Designed for Enterprise Operations</h2>
+            <p className="text-muted">The speed of stablecoins combined with professional wire transfer standards.</p>
+          </div>
+
+          <div className="bento-grid">
+            <div className="bento-card col-span-2">
+              <div className="bento-card-icon">
+                <Rows size={32} strokeWidth={1.5} />
+              </div>
+              <h3>Batch Wire Transfers</h3>
+              <p>Upload a standard CSV ledger containing up to 50 wires. CrossWire automatically checks addresses, parses SWIFT reference metadata, and completes all settlements in a single gas-efficient transaction block.</p>
+            </div>
+
+            <div className="bento-card">
+              <div className="bento-card-icon">
+                <Coins size={32} strokeWidth={1.5} />
+              </div>
+              <h3>Gasless with USDC</h3>
+              <p>No need to hold volatile native tokens to pay network fees. The Arc blockchain leverages USDC gas precompiles, letting you settle wires using only your USDC balance.</p>
+            </div>
+
+            <div className="bento-card">
+              <div className="bento-card-icon">
+                <Shield size={32} strokeWidth={1.5} />
+              </div>
+              <h3>2-of-3 Multi-Sig Compliance</h3>
+              <p>For transfers exceeding $10,000 USDC, on-chain compliance rules trigger automatically. Wires remain in pending approval until signatories execute the release.</p>
+            </div>
+
+            <div className="bento-card col-span-2">
+              <div className="bento-card-icon">
+                <Terminal size={32} strokeWidth={1.5} />
+              </div>
+              <h3>Developer-First Integration</h3>
+              <p>Embed professional wire transfers into your backend systems. Our Router contract handles token burns, attestations, and mints using straightforward, single-function Solidity APIs.</p>
+            </div>
+          </div>
+        </section>
+
+        {/* Final CTA / Waitlist Section */}
+        <section style={{ borderTop: '1px solid var(--border)', padding: '100px 24px', background: 'var(--surface)', position: 'relative', overflow: 'hidden' }}>
+          <div style={{ maxWidth: '600px', margin: '0 auto', textAlign: 'center', position: 'relative', zIndex: 1 }}>
+            <h2 style={{ fontSize: '36px', marginBottom: '16px' }}>Secure Your Waitlist Slot</h2>
+            <p className="text-muted" style={{ marginBottom: '32px' }}>
+              We are currently onboarding institutional partners and select fintech developers for our production release. Sign up to receive developer toolkits and early access codes.
+            </p>
+
+            {waitlistSubmitted ? (
+              <div className="callout" style={{ borderColor: 'var(--success)', background: 'var(--success-bg)', justifyContent: 'center' }}>
+                <CheckCircle2 className="text-success" size={20} />
+                <strong className="text-success">Thank you! You have been added to the waitlist.</strong>
+              </div>
+            ) : (
+              <form onSubmit={handleWaitlist} className="flex gap-2" style={{ maxWidth: '480px', margin: '0 auto' }}>
+                <input 
+                  type="email" 
+                  placeholder="Enter your professional email address" 
+                  className="input-notion" 
+                  required
+                  value={waitlistEmail}
+                  onChange={(e) => setWaitlistEmail(e.target.value)}
+                />
+                <button type="submit" className="btn primary">Join Waitlist</button>
+              </form>
+            )}
+            <p className="text-xs text-muted mt-4">No credit cards. Fully operated on Arc Testnet.</p>
+          </div>
+        </section>
+      </main>
+
+      <Footer />
     </div>
   )
 }

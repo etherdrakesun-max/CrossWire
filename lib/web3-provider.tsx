@@ -20,6 +20,40 @@ const config = getDefaultConfig({
 const queryClient = new QueryClient()
 
 export function Web3Provider({ children }: { children: React.ReactNode }) {
+  React.useEffect(() => {
+    const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
+      const message = event.reason?.message || '';
+      if (
+        message.includes('subscribe') || 
+        message.includes('Connection interrupted') || 
+        message.includes('WebSocket') ||
+        message.includes('socket')
+      ) {
+        event.preventDefault();
+      }
+    };
+
+    const handleError = (event: ErrorEvent) => {
+      const message = event.message || '';
+      if (
+        message.includes('subscribe') || 
+        message.includes('Connection interrupted') || 
+        message.includes('WebSocket') ||
+        message.includes('socket')
+      ) {
+        event.preventDefault();
+      }
+    };
+
+    window.addEventListener('unhandledrejection', handleUnhandledRejection);
+    window.addEventListener('error', handleError);
+
+    return () => {
+      window.removeEventListener('unhandledrejection', handleUnhandledRejection);
+      window.removeEventListener('error', handleError);
+    };
+  }, []);
+
   return (
     <WagmiProvider config={config}>
       <QueryClientProvider client={queryClient}>
@@ -38,3 +72,4 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
     </WagmiProvider>
   )
 }
+

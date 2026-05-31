@@ -3,22 +3,36 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { ConnectButton } from '@rainbow-me/rainbowkit'
+import { LayoutGrid, Send, ArrowRightLeft, Rows, History, ShieldCheck, Blocks } from 'lucide-react'
 
-const NAV_ITEMS: { group: string; items: { href: string; icon: string; label: string; badge?: string }[] }[] = [
+interface NavItem {
+  href: string
+  icon: any
+  label: string
+  badge?: string
+}
+
+interface NavGroup {
+  group: string
+  items: NavItem[]
+}
+
+const NAV_ITEMS: NavGroup[] = [
   { group: 'Operations', items: [
-    { href: '/', icon: '📊', label: 'Dashboard' },
-    { href: '/send', icon: '💸', label: 'Send Payment' },
-    { href: '/bridge', icon: '🌉', label: 'CCTP Bridge' },
-    { href: '/batch', icon: '📋', label: 'Batch Wire' },
+    { href: '/dashboard', icon: LayoutGrid, label: 'Dashboard' },
+    { href: '/send', icon: Send, label: 'Send Payment' },
+    { href: '/bridge', icon: ArrowRightLeft, label: 'CCTP Bridge' },
+    { href: '/batch', icon: Rows, label: 'Batch Wire' },
   ]},
   { group: 'Analytics', items: [
-    { href: '/history', icon: '🗃️', label: 'Transaction Log' },
-    { href: '/compliance', icon: '🛡️', label: 'Compliance' },
+    { href: '/history', icon: History, label: 'Transaction Log' },
+    { href: '/compliance', icon: ShieldCheck, label: 'Compliance' },
   ]},
   { group: 'Circle Stack', items: [
-    { href: '/integrations', icon: '🔗', label: 'Integrations', badge: '7' },
+    { href: '/integrations', icon: Blocks, label: 'Integrations', badge: '7' },
   ]},
 ]
+
 
 export default function Sidebar() {
   const pathname = usePathname()
@@ -27,7 +41,7 @@ export default function Sidebar() {
     <div className="sidebar">
       {/* Logo */}
       <div className="sidebar-logo">
-        <div className="sidebar-logo-icon">CW</div>
+        <div className="sidebar-logo-icon"></div>
         <span className="sidebar-logo-text">CrossWire</span>
       </div>
 
@@ -37,22 +51,27 @@ export default function Sidebar() {
       {NAV_ITEMS.map((group) => (
         <div className="sidebar-group" key={group.group}>
           <div className="sidebar-header">{group.group}</div>
-          {group.items.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={`sidebar-item ${pathname === item.href ? 'active' : ''}`}
-            >
-              <span className="sidebar-item-icon">{item.icon}</span>
-              {item.label}
-              {item.badge && <span className="sidebar-badge">{item.badge}</span>}
-            </Link>
-          ))}
+          {group.items.map((item) => {
+            const Icon = item.icon
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`sidebar-item ${pathname === item.href ? 'active' : ''}`}
+              >
+                <span className="sidebar-item-icon">
+                  <Icon size={16} strokeWidth={1.25} />
+                </span>
+                {item.label}
+                {item.badge && <span className="badge gray" style={{ marginLeft: 'auto' }}>{item.badge}</span>}
+              </Link>
+            )
+          })}
         </div>
       ))}
 
       {/* Wallet at bottom */}
-      <div style={{ marginTop: 'auto', padding: '12px 14px', borderTop: '1px solid var(--notion-border-light)' }}>
+      <div style={{ marginTop: 'auto', padding: '16px 24px', borderTop: '1px solid var(--border)' }}>
         <ConnectButton.Custom>
           {({ account, chain, openAccountModal, openChainModal, openConnectModal, mounted }) => {
             const ready = mounted
@@ -68,25 +87,26 @@ export default function Sidebar() {
                 {(() => {
                   if (!connected) {
                     return (
-                      <button onClick={openConnectModal} className="btn primary" style={{ width: '100%', fontSize: '13px' }}>
+                      <button onClick={openConnectModal} className="btn primary" style={{ width: '100%' }}>
                         Connect Wallet
                       </button>
                     )
                   }
 
                   return (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                       <button
                         onClick={openChainModal}
-                        className="btn ghost sm"
-                        style={{ width: '100%', justifyContent: 'flex-start', fontSize: '12px' }}
+                        className="btn ghost"
+                        style={{ width: '100%', justifyContent: 'flex-start', border: '1px solid var(--border)' }}
                       >
-                        🟢 {chain.name}
+                        <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'var(--success)' }}></div>
+                        {chain.name}
                       </button>
                       <button
                         onClick={openAccountModal}
-                        className="btn ghost sm"
-                        style={{ width: '100%', justifyContent: 'flex-start', fontFamily: 'monospace', fontSize: '12px' }}
+                        className="btn ghost text-mono"
+                        style={{ width: '100%', justifyContent: 'flex-start' }}
                       >
                         {account.displayName}
                       </button>
