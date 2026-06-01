@@ -1,0 +1,29 @@
+{
+  "name": "CrossWire Expatriate Gasless Remittance Policy",
+  "description": "Sponsors all verification and remittance transfers for expatriate contractors on Arc Testnet.",
+  "blockchain": "arc-testnet",
+  "spendTimeWindow": "DAILY",
+  "spendLimitAmount": "100.00",
+  "rules": [
+    {
+      "contractAddress": "0x3600000000000000000000000000000000000000",
+      "functionSignature": "approve(address,uint256)",
+      "comment": "Sponsor USDC allowance approvals for CrossWireRouter"
+    },
+    {
+      "contractAddress": "0x89B50855Aa3bE2F677cD6303Cec089B5F319D72a",
+      "functionSignature": "approve(address,uint256)",
+      "comment": "Sponsor EURC allowance approvals for Spot FX Swaps"
+    },
+    {
+      "contractAddress": "0x4CEF52F7e9e623A8C66fB9F51eD494D99e5251a3",
+      "functionSignature": "initiateWire(address,uint256,bytes32,uint8,string)",
+      "comment": "Sponsor single expatriate SWIFT-compliant wire transfers"
+    },
+    {
+      "contractAddress": "0x4CEF52F7e9e623A8C66fB9F51eD494D99e5251a3",
+      "functionSignature": "batchInitiateWires(address[],uint256[],bytes32[],uint8[])",
+      "comment": "Sponsor mass programmatic B2B payouts executed in one transaction"
+    }
+  ]
+}
