@@ -15,6 +15,7 @@ import {
 } from '@/lib/arc-config'
 import { crossWireRouterAbi, erc20Abi } from '@/lib/contracts'
 import { Rows, Upload, Plus, Zap, FileText, CheckCircle, Clock, X } from 'lucide-react'
+import { useModal } from '@/lib/modal-context'
 
 interface BatchRow {
   recipient: string
@@ -30,6 +31,7 @@ export default function BatchPage() {
   const publicClient = usePublicClient()
   const { data: walletClient } = useWalletClient()
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const { showModal, updateModal } = useModal()
 
   const [rows, setRows] = useState<BatchRow[]>([])
   const [isProcessing, setIsProcessing] = useState(false)
@@ -64,6 +66,94 @@ export default function BatchPage() {
     })
   }
 
+  const proceedBatchExecute = async (totalAmount: bigint, recipients: `0x${string}`[], amounts: bigint[], references: `0x${string}`[], purposeCodes: number[]) => {
+    setIsProcessing(true)
+    try {
+      showModal({
+        type: 'loading',
+        title: 'Approving Batch Float',
+        description: 'Please approve the total USDC spending allowance in your corporate wallet client...'
+      })
+
+      // Approve total
+      const approveHash = await walletClient!.writeContract({
+        address: USDC_ADDRESS,
+        abi: erc20Abi,
+        functionName: 'approve',
+        args: [CROSSWIRE_CONTRACT_ADDRESS, totalAmount],
+        chain: null,
+        account: address!,
+      })
+      await publicClient!.waitForTransactionReceipt({ hash: approveHash })
+
+      showModal({
+        type: 'tx-status',
+        title: 'Executing Batch Wires',
+        description: `Submitting batch payload of ${rows.length} wires to the CrossWireRouter. Sub-second finality active.`,
+        txStatus: 'pending'
+      })
+
+      setRows((prev) => prev.map((r) => ({ ...r, status: 'executing' as const })))
+
+      const batchHash = await walletClient!.writeContract({
+        address: CROSSWIRE_CONTRACT_ADDRESS,
+        abi: crossWireRouterAbi,
+        functionName: 'batchInitiateWires',
+        args: [recipients, amounts, references, purposeCodes],
+        chain: null,
+        account: address!,
+      })
+
+      updateModal({
+        title: 'Confirming on Arc Ledger',
+        description: `Constructing atomic block entries for ${rows.length} wire transfers...`,
+        txStatus: 'confirming',
+        txHash: batchHash
+      })
+
+      await publicClient!.waitForTransactionReceipt({ hash: batchHash })
+      setBatchTxHash(batchHash)
+
+      setRows((prev) => prev.map((r) => ({ ...r, status: 'success' as const })))
+      
+      const hasEscrowed = rows.some(r => parseFloat(r.amount) >= 10000)
+
+      updateModal({
+        type: 'success',
+        title: 'Batch Settlement Executed!',
+        description: (
+          <div style={{ textAlign: 'left', display: 'flex', flexDirection: 'column', gap: '12px', fontSize: '13px', lineHeight: '1.6' }}>
+            <p>Successfully processed <strong>{rows.length} wire transfers</strong> in a single atomic transaction block.</p>
+            {hasEscrowed ? (
+              <div className="callout" style={{ borderColor: 'var(--warning)', background: 'var(--warning-bg)', margin: 0 }}>
+                <strong className="text-warning font-semibold">Multi-Sig Escrow Active</strong>
+                <p className="text-warning text-xs mt-1">One or more wires in this batch exceed $10,000 USDC. They are held in escrow pending secondary signatory authorization on the Compliance Board.</p>
+              </div>
+            ) : (
+              <div className="callout" style={{ borderColor: 'var(--success)', background: 'var(--success-bg)', margin: 0 }}>
+                <strong className="text-success font-semibold">Atomic Low-Cost Settlement</strong>
+                <p className="text-success text-xs mt-1">All {rows.length} transfers completed gas-efficiently using USDC native precompiles in under 1 second.</p>
+              </div>
+            )}
+          </div>
+        ),
+        confirmText: 'Verify Transaction',
+        onConfirm: () => { window.open(`https://testnet.arcscan.app/tx/${batchHash}`, '_blank') }
+      })
+    } catch (err: any) {
+      console.error('Batch error:', err)
+      setRows((prev) => prev.map((r) => ({ ...r, status: 'error' as const, error: err?.shortMessage || 'Failed' })))
+      showModal({
+        type: 'error',
+        title: 'Batch Dispatch Failed',
+        description: err?.shortMessage || 'The transaction request was rejected or reverted by the EVM.',
+        errorDetails: err?.message || 'EVM revert.'
+      })
+    } finally {
+      setIsProcessing(false)
+    }
+  }
+
   const handleBatchExecute = async () => {
     if (!walletClient || !address || !publicClient || !isContractDeployed) {
       toast.error('Connect wallet and ensure contract is deployed')
@@ -75,68 +165,45 @@ export default function BatchPage() {
       return
     }
 
-    setIsProcessing(true)
+    // Calculate total amount for approval
+    let totalAmount = 0n
+    const recipients: `0x${string}`[] = []
+    const amounts: bigint[] = []
+    const references: `0x${string}`[] = []
+    const purposeCodes: number[] = []
 
-    try {
-      // Calculate total amount for approval
-      let totalAmount = 0n
-      const recipients: `0x${string}`[] = []
-      const amounts: bigint[] = []
-      const references: `0x${string}`[] = []
-      const purposeCodes: number[] = []
+    let hasHighValue = false
 
-      for (const row of rows) {
-        const amt = parseUnits(row.amount, USDC_DECIMALS)
-        totalAmount += amt
-        recipients.push(row.recipient as `0x${string}`)
-        amounts.push(amt)
-        references.push(
-          keccak256(
-            encodePacked(
-              ['address', 'string'],
-              [row.recipient as `0x${string}`, row.reference || `batch-${Date.now()}`]
-            )
-          ) as `0x${string}`
-        )
-        purposeCodes.push(row.purposeCode)
+    for (const row of rows) {
+      const amt = parseUnits(row.amount, USDC_DECIMALS)
+      totalAmount += amt
+      recipients.push(row.recipient as `0x${string}`)
+      amounts.push(amt)
+      references.push(
+        keccak256(
+          encodePacked(
+            ['address', 'string'],
+            [row.recipient as `0x${string}`, row.reference || `batch-${Date.now()}`]
+          )
+        ) as `0x${string}`
+      )
+      purposeCodes.push(row.purposeCode)
+      if (parseFloat(row.amount) >= 10000) {
+        hasHighValue = true
       }
+    }
 
-      // Approve total
-      toast.loading('Approving total USDC...', { id: 'batch' })
-      const approveHash = await walletClient.writeContract({
-        address: USDC_ADDRESS,
-        abi: erc20Abi,
-        functionName: 'approve',
-        args: [CROSSWIRE_CONTRACT_ADDRESS, totalAmount],
-        chain: null,
-        account: address,
+    if (hasHighValue) {
+      showModal({
+        type: 'warning',
+        title: 'Compliance: High-Value Batch Wires Detected',
+        description: `This batch contains one or more transfers exceeding the $10,000 limit. Standard wires will settle immediately, but high-value wires will be securely locked in on-chain multi-sig escrow.`,
+        confirmText: 'Execute Compliance Batch',
+        cancelText: 'Cancel & Revise',
+        onConfirm: () => proceedBatchExecute(totalAmount, recipients, amounts, references, purposeCodes)
       })
-      await publicClient.waitForTransactionReceipt({ hash: approveHash })
-
-      // Execute batch
-      toast.loading(`Executing ${rows.length} wire transfers...`, { id: 'batch' })
-      setRows((prev) => prev.map((r) => ({ ...r, status: 'executing' as const })))
-
-      const batchHash = await walletClient.writeContract({
-        address: CROSSWIRE_CONTRACT_ADDRESS,
-        abi: crossWireRouterAbi,
-        functionName: 'batchInitiateWires',
-        args: [recipients, amounts, references, purposeCodes],
-        chain: null,
-        account: address,
-      })
-
-      await publicClient.waitForTransactionReceipt({ hash: batchHash })
-      setBatchTxHash(batchHash)
-
-      setRows((prev) => prev.map((r) => ({ ...r, status: 'success' as const })))
-      toast.success(`${rows.length} wires executed in 1 transaction!`, { id: 'batch' })
-    } catch (err: any) {
-      console.error('Batch error:', err)
-      setRows((prev) => prev.map((r) => ({ ...r, status: 'error' as const, error: err?.shortMessage || 'Failed' })))
-      toast.error(err?.shortMessage || 'Batch execution failed', { id: 'batch' })
-    } finally {
-      setIsProcessing(false)
+    } else {
+      await proceedBatchExecute(totalAmount, recipients, amounts, references, purposeCodes)
     }
   }
 
