@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { ConnectButton } from '@rainbow-me/rainbowkit'
-import { LayoutGrid, Send, ArrowRightLeft, Rows, History, ShieldCheck, Blocks } from 'lucide-react'
+import { LayoutGrid, Send, ArrowRightLeft, Rows, History, ShieldCheck, Blocks, Coins } from 'lucide-react'
 
 interface NavItem {
   href: string
@@ -23,6 +23,7 @@ const NAV_ITEMS: NavGroup[] = [
     { href: '/send', icon: Send, label: 'Send Payment' },
     { href: '/bridge', icon: ArrowRightLeft, label: 'CCTP Bridge' },
     { href: '/batch', icon: Rows, label: 'Batch Wire' },
+    { href: '/treasury', icon: Coins, label: 'Treasury & FX' },
   ]},
   { group: 'Analytics', items: [
     { href: '/history', icon: History, label: 'Transaction Log' },

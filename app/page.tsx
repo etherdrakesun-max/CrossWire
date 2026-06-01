@@ -124,22 +124,38 @@ export default function LandingPage() {
             {/* Embedded Live Simulation visual */}
             <div className="simulator-container" style={{ border: 'none', background: 'transparent', margin: 0, padding: '24px 16px' }}>
               <div className="simulator-pipeline">
-                <div className={`simulator-step ${simStep >= 1 ? 'active' : ''} ${simStep > 1 ? 'completed' : ''}`}>
+                <div 
+                  className={`simulator-step ${simStep >= 1 ? 'active' : ''} ${simStep > 1 ? 'completed' : ''}`}
+                  title="BURN: The smart contract on the source chain burns the specified USDC, locking the assets permanently and producing an on-chain event which Circle's network monitors."
+                  style={{ cursor: 'help' }}
+                >
                   <div className="simulator-dot"></div>
                   <span className="simulator-label">1. Burn</span>
                 </div>
                 <div className={`simulator-line ${simStep > 1 ? 'completed' : ''}`}></div>
-                <div className={`simulator-step ${simStep >= 2 ? 'active' : ''} ${simStep > 2 ? 'completed' : ''}`}>
+                <div 
+                  className={`simulator-step ${simStep >= 2 ? 'active' : ''} ${simStep > 2 ? 'completed' : ''}`}
+                  title="ATTEST: Circle's off-chain attestation service monitors the source chain for Burn events, validates the transaction signature, and generates a cryptographic proof of the burn."
+                  style={{ cursor: 'help' }}
+                >
                   <div className="simulator-dot"></div>
                   <span className="simulator-label">2. Attest</span>
                 </div>
                 <div className={`simulator-line ${simStep > 2 ? 'completed' : ''}`}></div>
-                <div className={`simulator-step ${simStep >= 3 ? 'active' : ''} ${simStep > 3 ? 'completed' : ''}`}>
+                <div 
+                  className={`simulator-step ${simStep >= 3 ? 'active' : ''} ${simStep > 3 ? 'completed' : ''}`}
+                  title="MINT: The cryptographic attestation is sent to the Arc blockchain router contract, which validates the signatures and mints fresh native USDC directly to the recipient address."
+                  style={{ cursor: 'help' }}
+                >
                   <div className="simulator-dot"></div>
                   <span className="simulator-label">3. Mint</span>
                 </div>
                 <div className={`simulator-line ${simStep > 3 ? 'completed' : ''}`}></div>
-                <div className={`simulator-step ${simStep >= 4 ? 'active' : ''} ${simStep > 4 ? 'completed' : ''}`}>
+                <div 
+                  className={`simulator-step ${simStep >= 4 ? 'active' : ''} ${simStep > 4 ? 'completed' : ''}`}
+                  title="SETTLED: The wire is complete. Deterministic sub-second block finality on Arc seals the ledger entry permanently, carrying ISO 20022 compliance purpose codes on-chain."
+                  style={{ cursor: 'help' }}
+                >
                   <div className="simulator-dot"></div>
                   <span className="simulator-label">4. Settled</span>
                 </div>
