@@ -1366,3 +1366,116 @@ p, .text-body { margin-top: 2px; margin-bottom: 8px; }
   100% { transform: rotate(360deg); }
 }
 
+/* ==========================================================================
+   CROSSWIRE RESPONSIVE DESIGN SYSTEM
+   ========================================================================== */
+
+/* --- Adaptive Desktop & Tablet Grid Utilities --- */
+.page-grid-two-col {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr;
+  gap: 32px;
+}
+
+.grid-two-equal {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+}
+
+/* --- Mobile Viewport Restructuring (<768px) --- */
+@media (max-width: 768px) {
+  /* Restructure main layout to vertical flow */
+  .layout-wrapper {
+    flex-direction: column !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  /* Transform Sidebar into an elegant top navigation shelf */
+  .sidebar {
+    width: 100% !important;
+    min-width: 100% !important;
+    height: auto !important;
+    border-right: none !important;
+    border-bottom: 1px solid var(--border) !important;
+    padding: 16px 0 !important;
+  }
+
+  .sidebar-logo {
+    margin-bottom: 16px !important;
+    justify-content: center !important;
+  }
+
+  .sidebar-divider {
+    margin: 8px 24px !important;
+  }
+
+  /* Arrange sidebar links horizontally into wrapping buttons */
+  .sidebar-group {
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: wrap !important;
+    justify-content: center !important;
+    gap: 8px !important;
+    padding: 0 16px !important;
+    margin-bottom: 12px !important;
+  }
+
+  .sidebar-header {
+    width: 100% !important;
+    text-align: center !important;
+    margin-bottom: 4px !important;
+    padding: 0 !important;
+  }
+
+  .sidebar-item {
+    font-size: 12px !important;
+    padding: 6px 12px !important;
+    background: var(--bg-secondary) !important;
+    border: 1px solid var(--border) !important;
+    border-radius: 2px !important;
+  }
+
+  .sidebar-item-icon {
+    display: none !important; /* Save space on mobile top shelf */
+  }
+
+  /* Topbar Adjustments */
+  .topbar {
+    padding: 0 16px !important;
+    position: static !important; /* Allow natural flow */
+    height: auto !important;
+    min-height: auto !important;
+    padding-top: 12px !important;
+    padding-bottom: 12px !important;
+    flex-direction: column !important;
+    gap: 12px !important;
+  }
+
+  /* Page Padding Optimization */
+  .page-container {
+    padding: 24px 16px 48px !important;
+  }
+
+  /* Convert grids into single-column layouts dynamically */
+  .page-grid-two-col, 
+  .grid-two-equal, 
+  .stat-grid {
+    grid-template-columns: 1fr !important;
+    gap: 20px !important;
+  }
+
+  /* Table Autonomic Horizontal Scroll Mechanics */
+  .database-table {
+    display: block !important;
+    width: 100% !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    white-space: nowrap !important;
+    border: 1px solid var(--border) !important;
+    border-radius: 2px !important;
+  }
+}
+
+
