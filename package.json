@@ -11,6 +11,7 @@
   "dependencies": {
     "@circle-fin/adapter-viem-v2": "^1.11.0",
     "@circle-fin/app-kit": "^1.5.1",
+    "@circle-fin/developer-controlled-wallets": "^10.6.0",
     "@hookform/resolvers": "^5.2.2",
     "@nomicfoundation/hardhat-viem": "^3.0.7",
     "@rainbow-me/rainbowkit": "^2.2.11",
