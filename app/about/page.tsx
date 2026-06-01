@@ -25,7 +25,7 @@ export default function AboutPage() {
           </p>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', margin: '40px 0' }}>
+        <div className="grid-two-equal" style={{ margin: '40px 0' }}>
           <div style={{ padding: '24px', border: '1px solid var(--border)', background: 'var(--surface)' }}>
             <Compass size={32} className="text-success" style={{ marginBottom: '16px' }} />
             <h3 style={{ margin: 0, marginBottom: '8px' }}>Our Vision</h3>

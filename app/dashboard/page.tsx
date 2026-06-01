@@ -7,11 +7,13 @@ import Sidebar from '../components/Sidebar'
 import Topbar from '../components/Topbar'
 import { USDC_ADDRESS, CROSSWIRE_CONTRACT_ADDRESS, getExplorerAddressUrl } from '@/lib/arc-config'
 import { erc20Abi, crossWireRouterAbi } from '@/lib/contracts'
-import { LayoutGrid, AlertTriangle, Code, History } from 'lucide-react'
+import { LayoutGrid, AlertTriangle, Code, History, Info } from 'lucide-react'
+import { useModal } from '@/lib/modal-context'
 
 export default function DashboardPage() {
   const { address, isConnected } = useAccount()
   const publicClient = usePublicClient()
+  const { showModal } = useModal()
 
   const [balance, setBalance] = useState<string>('0.00')
   const [wireCount, setWireCount] = useState<string>('0')
@@ -93,22 +95,113 @@ export default function DashboardPage() {
           {/* Stats Grid */}
           <div className="stat-grid">
             <div className="stat-card">
-              <div className="stat-label">USDC Balance</div>
+              <div className="flex justify-between items-start" style={{ width: '100%' }}>
+                <div className="stat-label">USDC Balance</div>
+                <button
+                  className="btn ghost text-muted"
+                  style={{ padding: '2px', minHeight: 'auto', borderRadius: '50%' }}
+                  onClick={() => showModal({
+                    type: 'confirm',
+                    title: 'Metric: USDC Balance',
+                    description: (
+                      <div style={{ textAlign: 'left', display: 'flex', flexDirection: 'column', gap: '12px', fontSize: '13px', lineHeight: '1.6' }}>
+                        <p><strong>What it is:</strong> The current liquid balance of USD Coin (USDC) held in your connected wallet address on the Arc network.</p>
+                        <p><strong>Why it matters:</strong> Corporate wire routing, remittances, and automated payroll payouts require active USDC float. Since Arc uses USDC natively, this balance is also used to pay execution gas fees.</p>
+                        <p><strong>Verification:</strong> Live on-chain balance fetched via RPC from the official ERC-20 contract address on Arc Testnet.</p>
+                      </div>
+                    ),
+                    confirmText: 'Got it',
+                    cancelText: 'Close'
+                  })}
+                  title="View Metric Explanation"
+                >
+                  <Info size={14} />
+                </button>
+              </div>
               <div className="stat-value">${Number(balance).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
               <div className="stat-label mt-2 text-muted">Arc Testnet</div>
             </div>
+
             <div className="stat-card">
-              <div className="stat-label">Total Wires</div>
+              <div className="flex justify-between items-start" style={{ width: '100%' }}>
+                <div className="stat-label">Total Wires</div>
+                <button
+                  className="btn ghost text-muted"
+                  style={{ padding: '2px', minHeight: 'auto', borderRadius: '50%' }}
+                  onClick={() => showModal({
+                    type: 'confirm',
+                    title: 'Metric: Total Wires',
+                    description: (
+                      <div style={{ textAlign: 'left', display: 'flex', flexDirection: 'column', gap: '12px', fontSize: '13px', lineHeight: '1.6' }}>
+                        <p><strong>What it is:</strong> The absolute number of wire transfers initiated and recorded globally through the CrossWireRouter smart contract.</p>
+                        <p><strong>Why it matters:</strong> Indicates pipeline utility, transaction throughput, and accounting reliability. Every wire generates an immutable, unique on-chain Wire ID.</p>
+                        <p><strong>Verification:</strong> Queried directly from the smart contract state counter, incrementing automatically with every successful <code>WireExecuted</code> event.</p>
+                      </div>
+                    ),
+                    confirmText: 'Got it',
+                    cancelText: 'Close'
+                  })}
+                  title="View Metric Explanation"
+                >
+                  <Info size={14} />
+                </button>
+              </div>
               <div className="stat-value">{wireCount}</div>
               <div className="stat-label mt-2 text-muted">On-chain verified</div>
             </div>
+
             <div className="stat-card">
-              <div className="stat-label">Volume Settled</div>
+              <div className="flex justify-between items-start" style={{ width: '100%' }}>
+                <div className="stat-label">Volume Settled</div>
+                <button
+                  className="btn ghost text-muted"
+                  style={{ padding: '2px', minHeight: 'auto', borderRadius: '50%' }}
+                  onClick={() => showModal({
+                    type: 'confirm',
+                    title: 'Metric: Volume Settled',
+                    description: (
+                      <div style={{ textAlign: 'left', display: 'flex', flexDirection: 'column', gap: '12px', fontSize: '13px', lineHeight: '1.6' }}>
+                        <p><strong>What it is:</strong> The total aggregate volume in US Dollars (represented by USDC) successfully settled through CrossWire.</p>
+                        <p><strong>Why it matters:</strong> Reflects the total financial scale processed securely. It represents funds that bypassed costly legacy banking networks.</p>
+                        <p><strong>Verification:</strong> Running aggregate stored immutably inside the contract and updated atomically on-chain with every wire completion.</p>
+                      </div>
+                    ),
+                    confirmText: 'Got it',
+                    cancelText: 'Close'
+                  })}
+                  title="View Metric Explanation"
+                >
+                  <Info size={14} />
+                </button>
+              </div>
               <div className="stat-value">${Number(totalVolume).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
               <div className="stat-label mt-2 text-muted">USDC on Arc</div>
             </div>
+
             <div className="stat-card">
-              <div className="stat-label">Finality</div>
+              <div className="flex justify-between items-start" style={{ width: '100%' }}>
+                <div className="stat-label">Finality</div>
+                <button
+                  className="btn ghost text-muted"
+                  style={{ padding: '2px', minHeight: 'auto', borderRadius: '50%' }}
+                  onClick={() => showModal({
+                    type: 'confirm',
+                    title: 'Metric: Sub-Second Finality',
+                    description: (
+                      <div style={{ textAlign: 'left', display: 'flex', flexDirection: 'column', gap: '12px', fontSize: '13px', lineHeight: '1.6' }}>
+                        <p><strong>What it is:</strong> The duration required for an initiated payment to reach permanent, irrevocable settlement on-chain.</p>
+                        <p><strong>Why it matters:</strong> Legacy SWIFT takes 3 to 5 days. Arc network precompiles enable deterministic transaction settlement in under 1 second. No block confirmation depth is required by finance teams.</p>
+                        <p><strong>Verification:</strong> Governed by Arc\'s high-speed consensus, which confirms and seals blocks sequentially in sub-second intervals.</p>
+                      </div>
+                    ),
+                    confirmText: 'Got it',
+                    cancelText: 'Close'
+                  })}
+                  title="View Metric Explanation"
+                >
+                  <Info size={14} />
+                </button>
+              </div>
               <div className="stat-value">&lt;1s</div>
               <div className="stat-label mt-2 text-muted">Deterministic</div>
             </div>

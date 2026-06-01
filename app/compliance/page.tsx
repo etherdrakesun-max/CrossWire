@@ -296,7 +296,7 @@ export default function CompliancePage() {
                   <X size={16} strokeWidth={1.5} />
                 </button>
               </div>
-              <div className="card-body" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+              <div className="card-body grid-two-equal" style={{ gap: '16px' }}>
                 <div>
                   <div className="text-xs text-muted mb-1">Actor</div>
                   <div className="text-mono">{selectedWire.sender || '—'}</div>
