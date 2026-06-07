@@ -1,0 +1,43 @@
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Wire {
+  id            Int      @id
+  sender        String
+  recipient     String
+  amount        String
+  feeAmount     String   @default("0")
+  refHash       String
+  purposeCode   Int      @default(0)
+  memo          String   @default("")
+  status        String   @default("PENDING")
+  txHash        String
+  blockNumber   Int
+  timestamp     DateTime
+  createdAt     DateTime @default(now())
+}
+
+model WireEvent {
+  id          Int      @id @default(autoincrement())
+  wireId      Int
+  eventType   String
+  actor       String
+  txHash      String
+  blockNumber Int
+  logIndex    Int
+  data        String   @default("{}")
+  timestamp   DateTime
+  createdAt   DateTime @default(now())
+  @@unique([txHash, logIndex])
+}
+
+model SyncState {
+  id              Int    @id @default(1)
+  lastBlockNumber Int    @default(0)
+}

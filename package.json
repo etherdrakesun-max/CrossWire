@@ -28,7 +28,8 @@
     "recharts": "^3.8.1",
     "viem": "^2.22.1",
     "wagmi": "^2.14.9",
-    "zod": "^4.4.3"
+    "zod": "^4.4.3",
+    "@prisma/client": "^5.15.0"
   },
   "devDependencies": {
     "@types/node": "^20",
@@ -36,6 +37,7 @@
     "@types/react": "^19.2.15",
     "@types/react-dom": "^19.2.3",
     "dotenv": "^17.4.2",
+    "prisma": "^5.15.0",
     "typescript": "^5"
   }
 }
