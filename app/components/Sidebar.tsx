@@ -6,7 +6,7 @@ import { useState } from 'react'
 import { useAccount, useDisconnect } from 'wagmi'
 import { ConnectButton } from '@rainbow-me/rainbowkit'
 import AuthModal from './AuthModal'
-import { LayoutGrid, Send, ArrowRightLeft, Rows, History, ShieldCheck, Blocks, Coins } from 'lucide-react'
+import { LayoutGrid, Send, ArrowRightLeft, Rows, History, ShieldCheck, Blocks, Coins, BookOpen } from 'lucide-react'
 
 interface NavItem {
   href: string
@@ -24,10 +24,12 @@ const NAV_ITEMS: NavGroup[] = [
   { group: 'Operations', items: [
     { href: '/dashboard', icon: LayoutGrid, label: 'Dashboard' },
     { href: '/send', icon: Send, label: 'Send Payment' },
+    { href: '/contacts', icon: BookOpen, label: 'Address Book' },
     { href: '/bridge', icon: ArrowRightLeft, label: 'CCTP Bridge' },
     { href: '/batch', icon: Rows, label: 'Batch Wire' },
     { href: '/treasury', icon: Coins, label: 'Treasury & FX' },
   ]},
+
   { group: 'Analytics', items: [
     { href: '/history', icon: History, label: 'Transaction Log' },
     { href: '/compliance', icon: ShieldCheck, label: 'Compliance' },
