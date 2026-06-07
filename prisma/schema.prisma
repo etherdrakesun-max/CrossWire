@@ -84,3 +84,18 @@ model GatewayNanopayment {
   timestamp        DateTime @default(now())
   settlementTxHash String?
 }
+
+model FxTrade {
+  id               String   @id @default(uuid())
+  userAddress      String
+  sellCurrency     String
+  sellAmount       Float
+  buyCurrency      String
+  buyAmount        Float
+  quotedRate       Float
+  executedRate     Float
+  slippage         Float
+  txHash           String?
+  timestamp        DateTime @default(now())
+}
+
