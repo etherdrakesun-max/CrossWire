@@ -2,7 +2,10 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { useState } from 'react'
+import { useAccount, useDisconnect } from 'wagmi'
 import { ConnectButton } from '@rainbow-me/rainbowkit'
+import AuthModal from './AuthModal'
 import { LayoutGrid, Send, ArrowRightLeft, Rows, History, ShieldCheck, Blocks, Coins } from 'lucide-react'
 
 interface NavItem {
@@ -37,6 +40,9 @@ const NAV_ITEMS: NavGroup[] = [
 
 export default function Sidebar() {
   const pathname = usePathname()
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false)
+  const { connector } = useAccount()
+  const { disconnect } = useDisconnect()
 
   return (
     <div className="sidebar">
@@ -88,7 +94,7 @@ export default function Sidebar() {
                 {(() => {
                   if (!connected) {
                     return (
-                      <button onClick={openConnectModal} className="btn primary" style={{ width: '100%' }}>
+                      <button onClick={() => setIsAuthModalOpen(true)} className="btn primary" style={{ width: '100%' }}>
                         Connect Wallet
                       </button>
                     )
@@ -105,11 +111,18 @@ export default function Sidebar() {
                         {chain.name}
                       </button>
                       <button
-                        onClick={openAccountModal}
+                        onClick={() => {
+                          if (connector?.id === 'circleModularWallet') {
+                            disconnect()
+                          } else {
+                            openAccountModal()
+                          }
+                        }}
                         className="btn ghost text-mono"
                         style={{ width: '100%', justifyContent: 'flex-start' }}
+                        title={connector?.id === 'circleModularWallet' ? 'Click to disconnect Passkey' : 'View account details'}
                       >
-                        {account.displayName}
+                        {connector?.id === 'circleModularWallet' ? `Passkey: ${account.displayName}` : account.displayName}
                       </button>
                     </div>
                   )
@@ -119,6 +132,16 @@ export default function Sidebar() {
           }}
         </ConnectButton.Custom>
       </div>
+
+      <AuthModal 
+        isOpen={isAuthModalOpen} 
+        onClose={() => setIsAuthModalOpen(false)} 
+        openRainbowKit={() => {
+          // Temporarily trigger RainbowKit by getting element or clicking
+          const btn = document.querySelector('[aria-label="Connect Wallet"]') as HTMLButtonElement
+          if (btn) btn.click()
+        }}
+      />
     </div>
   )
 }

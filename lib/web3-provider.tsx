@@ -7,6 +7,8 @@ import { RainbowKitProvider, darkTheme, getDefaultConfig } from '@rainbow-me/rai
 import { arcTestnet } from './arc-config'
 import '@rainbow-me/rainbowkit/styles.css'
 
+import { circleModularWalletConnector } from './modular-wallet'
+
 const config = getDefaultConfig({
   appName: 'CrossWire',
   projectId: process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || 'demo_project_id',
@@ -16,6 +18,11 @@ const config = getDefaultConfig({
   },
   ssr: true,
 })
+
+// Inject custom Circle Modular Passkey connector
+if (config && config.connectors) {
+  ;(config.connectors as any).push(circleModularWalletConnector())
+}
 
 const queryClient = new QueryClient()
 
