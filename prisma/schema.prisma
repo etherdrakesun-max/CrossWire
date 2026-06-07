@@ -49,3 +49,11 @@ model PasskeyUser {
   username      String   @unique
   createdAt     DateTime @default(now())
 }
+
+model Sponsorship {
+  id            String   @id @default(uuid())
+  userAddress   String
+  txHash        String   @unique
+  gasSavedUsd   Float
+  timestamp     DateTime @default(now())
+}
