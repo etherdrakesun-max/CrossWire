@@ -1,5 +1,5 @@
 /**
- * CrossWireRouter Deployment Script
+ * CrossWireRouterV2 Deployment Script
  * Deploys to Arc Testnet with USDC as the settlement token.
  *
  * Usage:
@@ -12,12 +12,12 @@ async function main() {
   // Arc Testnet USDC address (ERC-20 interface, 6 decimals)
   const USDC_ADDRESS = "0x3600000000000000000000000000000000000000";
 
-  console.log("🔌 Deploying CrossWireRouter to Arc Testnet...");
+  console.log("🔌 Deploying CrossWireRouterV2 to Arc Testnet...");
   console.log("   USDC address:", USDC_ADDRESS);
 
-  const contract = await hre.viem.deployContract("CrossWireRouter", [USDC_ADDRESS]);
+  const contract = await hre.viem.deployContract("CrossWireRouterV2", [USDC_ADDRESS]);
 
-  console.log("✅ CrossWireRouter deployed to:", contract.address);
+  console.log("✅ CrossWireRouterV2 deployed to:", contract.address);
   console.log("");
   console.log("📋 Update your .env with:");
   console.log(`   NEXT_PUBLIC_CROSSWIRE_CONTRACT=${contract.address}`);

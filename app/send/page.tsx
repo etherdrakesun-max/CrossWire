@@ -305,6 +305,19 @@ export default function SendPage() {
                   />
                 </div>
 
+                {parseFloat(amount) > 0 && (
+                  <div style={{ marginTop: '-16px', marginBottom: '24px', padding: '12px', background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: '2px', fontSize: '13px' }}>
+                    <div className="flex justify-between" style={{ marginBottom: '6px' }}>
+                      <span className="text-secondary">Fee:</span>
+                      <span className="text-mono">${(parseFloat(amount) * 0.0025).toFixed(2)} USDC (0.25%)</span>
+                    </div>
+                    <div className="flex justify-between font-semibold" style={{ borderTop: '1px solid var(--border)', paddingTop: '6px' }}>
+                      <span>Recipient receives:</span>
+                      <span className="text-mono">${(parseFloat(amount) * 0.9975).toFixed(2)} USDC</span>
+                    </div>
+                  </div>
+                )}
+
                 <div className="form-group">
                   <label className="form-label">Purpose Code</label>
                   <select

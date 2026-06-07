@@ -30,7 +30,9 @@ export const USDC_DECIMALS = 6
 
 // Contract address — update after deployment
 export const CROSSWIRE_CONTRACT_ADDRESS = (
-  process.env.NEXT_PUBLIC_CROSSWIRE_CONTRACT || '0x0000000000000000000000000000000000000000'
+  process.env.NEXT_PUBLIC_CROSSWIRE_CONTRACT_V2 ||
+  process.env.NEXT_PUBLIC_CROSSWIRE_CONTRACT ||
+  '0x0000000000000000000000000000000000000000'
 ) as `0x${string}`
 
 // Explorer helpers

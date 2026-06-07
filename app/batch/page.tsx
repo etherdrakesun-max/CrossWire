@@ -375,6 +375,12 @@ export default function BatchPage() {
                     ${rows.reduce((sum, r) => sum + (parseFloat(r.amount) || 0), 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
                   </div>
                 </div>
+                <div className="stat-card">
+                  <div className="stat-label">Total Fees (0.25%)</div>
+                  <div className="stat-value">
+                    ${(rows.reduce((sum, r) => sum + (parseFloat(r.amount) || 0), 0) * 0.0025).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                  </div>
+                </div>
               </div>
 
               {batchTxHash && (
