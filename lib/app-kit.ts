@@ -47,6 +47,7 @@ export async function appKitSend(params: {
 
 /**
  * Bridge USDC from a source chain to Arc Testnet via CCTP.
+ * @deprecated Use direct CCTP V2 interactions in lib/cctp-v2.ts for production-grade cross-chain bridging.
  */
 export async function appKitBridge(params: {
   sourceChain: string
