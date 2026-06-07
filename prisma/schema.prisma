@@ -143,5 +143,33 @@ model Execution {
   executedAt  DateTime @default(now())
 }
 
+model Invoice {
+  id          Int           @id @default(autoincrement())
+  slug        String        @unique @default(uuid())
+  payeeAddr   String
+  payerAddr   String?
+  amount      String
+  currency    String        @default("USDC")
+  memo        String        @default("")
+  dueDate     DateTime?
+  status      String        @default("DRAFT")
+  wireId      Int?
+  txHash      String?
+  paidAt      DateTime?
+  items       InvoiceItem[]
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+}
+
+model InvoiceItem {
+  id          Int      @id @default(autoincrement())
+  invoiceId   Int
+  invoice     Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  description String
+  quantity    Int      @default(1)
+  unitPrice   String
+}
+
+
 
 
