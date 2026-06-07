@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { WagmiProvider, createConfig, http } from 'wagmi'
 import { RainbowKitProvider, darkTheme, getDefaultConfig } from '@rainbow-me/rainbowkit'
 import { arcTestnet } from './arc-config'
+import { sepolia, baseSepolia, arbitrumSepolia } from 'wagmi/chains'
 import '@rainbow-me/rainbowkit/styles.css'
 
 import { circleModularWalletConnector } from './modular-wallet'
@@ -12,9 +13,12 @@ import { circleModularWalletConnector } from './modular-wallet'
 const config = getDefaultConfig({
   appName: 'CrossWire',
   projectId: process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || 'demo_project_id',
-  chains: [arcTestnet],
+  chains: [arcTestnet, sepolia, baseSepolia, arbitrumSepolia],
   transports: {
     [arcTestnet.id]: http('https://rpc.testnet.arc.network'),
+    [sepolia.id]: http('https://rpc.ankr.com/eth_sepolia'),
+    [baseSepolia.id]: http('https://sepolia.base.org'),
+    [arbitrumSepolia.id]: http('https://sepolia-rollup.arbitrum.io/rpc'),
   },
   ssr: true,
 })
