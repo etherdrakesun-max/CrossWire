@@ -227,7 +227,40 @@ export default function BatchPage() {
     setRows([...rows, { recipient: '', amount: '', purposeCode: 0, reference: '', status: 'pending' }])
   }
 
+  const populateFromContacts = async () => {
+    if (!address) {
+      toast.error('Connect your wallet first')
+      return
+    }
+
+    try {
+      const res = await fetch(`/api/contacts?ownerAddr=${address}`)
+      if (res.ok) {
+        const data = await res.json()
+        if (data.length === 0) {
+          toast.error('No saved contacts found in your address book')
+          return
+        }
+
+        const newRows: BatchRow[] = data.map((c: any) => ({
+          recipient: c.address,
+          amount: '',
+          purposeCode: 0,
+          reference: `${c.name} wire`,
+          status: 'pending'
+        }))
+
+        setRows([...rows, ...newRows])
+        toast.success(`Populated ${newRows.length} contacts`)
+      }
+    } catch (e) {
+      console.error(e)
+      toast.error('Error fetching contacts')
+    }
+  }
+
   const updateRow = (index: number, field: keyof BatchRow, value: string | number) => {
+
     const updated = [...rows]
     ;(updated[index] as any)[field] = value
     setRows(updated)
@@ -266,6 +299,10 @@ export default function BatchPage() {
             <button className="btn" onClick={addManualRow}>
               <Plus size={16} strokeWidth={1.5} /> Add Row
             </button>
+            <button className="btn" onClick={populateFromContacts} disabled={!isConnected}>
+              <Rows size={16} strokeWidth={1.5} /> Populate from Contacts
+            </button>
+
             {rows.length > 0 && (
               <div className="flex items-center gap-3">
                 <button

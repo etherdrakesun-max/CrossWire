@@ -16,6 +16,8 @@ import { crossWireRouterAbi, erc20Abi } from '@/lib/contracts'
 import { Send, FileText, Unlock, Zap, CheckCircle, Plug, Link as LinkIcon, Info, FileSignature } from 'lucide-react'
 import { useModal } from '@/lib/modal-context'
 import MicroPaymentToggle from '../components/MicroPaymentToggle'
+import RecipientAutocomplete from '../components/RecipientAutocomplete'
+
 
 const PURPOSE_CODES = [
   { code: 0, label: 'General Payment' },
@@ -42,6 +44,38 @@ export default function SendPage() {
   const [purposeCode, setPurposeCode] = useState(0)
   const [txHash, setTxHash] = useState('')
   const [wireId, setWireId] = useState('')
+
+  // Contact State Variables
+  const [saveRecipient, setSaveRecipient] = useState(false)
+  const [saveName, setSaveName] = useState('')
+  const [recentRecipients, setRecentRecipients] = useState<any[]>([])
+
+  // Fetch recent recipients
+  useEffect(() => {
+    if (!address) {
+      setRecentRecipients([])
+      return
+    }
+
+    const fetchRecent = async () => {
+      try {
+        const res = await fetch(`/api/contacts?ownerAddr=${address}`)
+        if (res.ok) {
+          const data = await res.json()
+          const recent = data
+            .filter((c: any) => c.lastUsedAt !== null)
+            .sort((a: any, b: any) => new Date(b.lastUsedAt).getTime() - new Date(a.lastUsedAt).getTime())
+            .slice(0, 3)
+          setRecentRecipients(recent)
+        }
+      } catch (err) {
+        console.error('Error fetching recent recipients:', err)
+      }
+    }
+
+    fetchRecent()
+  }, [address, step])
+
 
   const isContractDeployed = CROSSWIRE_CONTRACT_ADDRESS !== '0x0000000000000000000000000000000000000000'
 
@@ -343,7 +377,46 @@ export default function SendPage() {
         } catch { /* OK */ }
       }
 
+      // Save Recipient / Update lastUsedAt if applicable
+      if (saveRecipient && saveName) {
+        try {
+          await fetch('/api/contacts', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              ownerAddr: address,
+              name: saveName,
+              address: recipient,
+            })
+          })
+        } catch (e) {
+          console.error('Error auto-saving contact:', e)
+        }
+      }
+
+      // Update lastUsedAt for the recipient if it already exists
+      try {
+        const checkRes = await fetch(`/api/contacts?ownerAddr=${address}`)
+        if (checkRes.ok) {
+          const contactsList = await checkRes.json()
+          const found = contactsList.find((c: any) => c.address.toLowerCase() === recipient.toLowerCase())
+          if (found) {
+            await fetch('/api/contacts', {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                id: found.id,
+                lastUsedAt: new Date().toISOString()
+              })
+            })
+          }
+        }
+      } catch (e) {
+        console.error('Error updating lastUsedAt:', e)
+      }
+
       setStep('success')
+
       
       const isOverLimit = parseFloat(amount) >= 10000
       updateModal({
@@ -417,7 +490,6 @@ export default function SendPage() {
       await proceedExecution(amountParsed)
     }
   }
-
   const resetForm = () => {
     setStep('form')
     setRecipient('')
@@ -426,7 +498,11 @@ export default function SendPage() {
     setPurposeCode(0)
     setTxHash('')
     setWireId('')
+    setSaveRecipient(false)
+    setSaveName('')
   }
+
+
 
   return (
     <div className="layout-wrapper">
@@ -479,13 +555,31 @@ export default function SendPage() {
               <div className="card-body">
                 <div className="form-group">
                   <label className="form-label">Beneficiary Address</label>
-                  <input
-                    className="input-notion"
-                    placeholder="0x..."
+                  <RecipientAutocomplete
+                    ownerAddr={address || ''}
                     value={recipient}
-                    onChange={(e) => setRecipient(e.target.value)}
+                    onChange={(val) => setRecipient(val)}
                   />
+                  {recentRecipients.length > 0 && (
+                    <div style={{ marginTop: '8px', fontSize: '12px' }}>
+                      <span className="text-secondary" style={{ marginRight: '8px' }}>Recent:</span>
+                      <div style={{ display: 'inline-flex', gap: '6px', flexWrap: 'wrap' }}>
+                        {recentRecipients.map((rec) => (
+                          <button
+                            key={rec.id}
+                            type="button"
+                            className="badge"
+                            style={{ cursor: 'pointer', background: 'rgba(255,255,255,0.06)', border: '1px solid var(--border)' }}
+                            onClick={() => setRecipient(rec.address)}
+                          >
+                            {rec.name}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
+
 
                 <div className="form-group">
                   <label className="form-label">Amount (USDC)</label>
@@ -533,6 +627,33 @@ export default function SendPage() {
                   isMicroMode={isMicroMode} 
                   onToggle={setIsMicroMode} 
                 />
+
+                <div className="form-group flex items-center gap-2" style={{ marginBottom: '16px', marginTop: '16px' }}>
+                  <input
+                    type="checkbox"
+                    id="saveCheck"
+                    checked={saveRecipient}
+                    onChange={(e) => setSaveRecipient(e.target.checked)}
+                    style={{ margin: 0, width: '16px', height: '16px' }}
+                  />
+                  <label htmlFor="saveCheck" style={{ cursor: 'pointer', fontSize: '13px' }}>
+                    Save this recipient to Address Book
+                  </label>
+                </div>
+
+                {saveRecipient && (
+                  <div className="form-group" style={{ marginBottom: '24px' }}>
+                    <label className="form-label">Recipient Label / Name</label>
+                    <input
+                      className="input-notion"
+                      placeholder="e.g. John Doe, Supplier Account"
+                      value={saveName}
+                      onChange={(e) => setSaveName(e.target.value)}
+                      required
+                    />
+                  </div>
+                )}
+
 
                 {isMicroMode && (
                   <div style={{ marginBottom: '20px', padding: '16px', background: 'rgba(255,255,255,0.02)', border: '1px dashed var(--border)', borderRadius: '4px' }}>
