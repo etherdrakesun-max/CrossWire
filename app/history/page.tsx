@@ -27,91 +27,25 @@ export default function HistoryPage() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    if (!publicClient) return
-    if (CROSSWIRE_CONTRACT_ADDRESS === '0x0000000000000000000000000000000000000000') {
-      setLoading(false)
-      return
-    }
-
     const fetchEvents = async () => {
-      setLoading(true)
       try {
-        // Fetch WireExecuted events
-        const executedLogs = await publicClient.getLogs({
-          address: CROSSWIRE_CONTRACT_ADDRESS,
-          event: {
-            type: 'event',
-            name: 'WireExecuted',
-            inputs: [
-              { indexed: true, name: 'wireId', type: 'uint256' },
-              { indexed: true, name: 'sender', type: 'address' },
-              { indexed: true, name: 'recipient', type: 'address' },
-              { indexed: false, name: 'amount', type: 'uint256' },
-              { indexed: false, name: 'refHash', type: 'bytes32' },
-            ],
-          },
-          fromBlock: 0n,
-          toBlock: 'latest',
-        })
+        const res = await fetch('/api/wires?limit=100')
+        const data = await res.json()
+        
+        const allEvents: WireEvent[] = (data.wires || []).map((wire: any) => ({
+          wireId: wire.id.toString(),
+          sender: wire.sender,
+          recipient: wire.recipient,
+          amount: formatUnits(BigInt(wire.amount), 6),
+          reference: wire.refHash,
+          txHash: wire.txHash,
+          blockNumber: wire.blockNumber.toString(),
+          type: wire.status === 'EXECUTED' ? 'executed' : 'initiated',
+        }))
 
-        // Fetch WireInitiated events
-        const initiatedLogs = await publicClient.getLogs({
-          address: CROSSWIRE_CONTRACT_ADDRESS,
-          event: {
-            type: 'event',
-            name: 'WireInitiated',
-            inputs: [
-              { indexed: true, name: 'wireId', type: 'uint256' },
-              { indexed: true, name: 'sender', type: 'address' },
-              { indexed: true, name: 'recipient', type: 'address' },
-              { indexed: false, name: 'amount', type: 'uint256' },
-              { indexed: false, name: 'refHash', type: 'bytes32' },
-              { indexed: false, name: 'purposeCode', type: 'uint8' },
-              { indexed: false, name: 'memo', type: 'string' },
-            ],
-          },
-          fromBlock: 0n,
-          toBlock: 'latest',
-        })
-
-        const allEvents: WireEvent[] = []
-
-        for (const log of executedLogs) {
-          allEvents.push({
-            wireId: log.args?.wireId?.toString() || '?',
-            sender: (log.args?.sender as string) || '',
-            recipient: (log.args?.recipient as string) || '',
-            amount: log.args?.amount ? formatUnits(log.args.amount as bigint, 6) : '0',
-            reference: (log.args?.refHash as string) || '',
-            txHash: log.transactionHash || '',
-            blockNumber: log.blockNumber?.toString() || '',
-            type: 'executed',
-          })
-        }
-
-        for (const log of initiatedLogs) {
-          const alreadyExecuted = allEvents.find(
-            (e) => e.wireId === log.args?.wireId?.toString() && e.type === 'executed'
-          )
-          if (!alreadyExecuted) {
-            allEvents.push({
-              wireId: log.args?.wireId?.toString() || '?',
-              sender: (log.args?.sender as string) || '',
-              recipient: (log.args?.recipient as string) || '',
-              amount: log.args?.amount ? formatUnits(log.args.amount as bigint, 6) : '0',
-              reference: (log.args?.refHash as string) || '',
-              txHash: log.transactionHash || '',
-              blockNumber: log.blockNumber?.toString() || '',
-              type: 'initiated',
-            })
-          }
-        }
-
-        // Sort by wire ID descending
-        allEvents.sort((a, b) => Number(b.wireId) - Number(a.wireId))
         setEvents(allEvents)
       } catch (err) {
-        console.error('Failed to fetch events:', err)
+        console.error('Failed to fetch events from API:', err)
       } finally {
         setLoading(false)
       }
@@ -120,7 +54,7 @@ export default function HistoryPage() {
     fetchEvents()
     const interval = setInterval(fetchEvents, 20000)
     return () => clearInterval(interval)
-  }, [publicClient])
+  }, [])
 
   const filteredEvents = events.filter((e) => {
     if (filter === 'all') return true

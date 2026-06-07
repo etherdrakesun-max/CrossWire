@@ -30,116 +30,77 @@ export default function CompliancePage() {
   const [loading, setLoading] = useState(true)
   const [isApproving, setIsApproving] = useState(false)
 
-  useEffect(() => {
-    if (!publicClient) return
-    if (CROSSWIRE_CONTRACT_ADDRESS === '0x0000000000000000000000000000000000000000') {
-      setLoading(false)
-      return
-    }
+  const fetchAuditLog = async () => {
+    try {
+      const res = await fetch('/api/wires?limit=100')
+      const data = await res.json()
 
-    const fetchAuditLog = async () => {
-      setLoading(true)
-      try {
-        const allLogs: AuditEntry[] = []
+      const allLogs: AuditEntry[] = []
 
-        // WireInitiated
-        const initiated = await publicClient.getLogs({
-          address: CROSSWIRE_CONTRACT_ADDRESS,
-          event: {
-            type: 'event', name: 'WireInitiated',
-            inputs: [
-              { indexed: true, name: 'wireId', type: 'uint256' },
-              { indexed: true, name: 'sender', type: 'address' },
-              { indexed: true, name: 'recipient', type: 'address' },
-              { indexed: false, name: 'amount', type: 'uint256' },
-              { indexed: false, name: 'refHash', type: 'bytes32' },
-              { indexed: false, name: 'purposeCode', type: 'uint8' },
-              { indexed: false, name: 'memo', type: 'string' },
-            ],
-          },
-          fromBlock: 0n, toBlock: 'latest',
+      for (const wire of (data.wires || [])) {
+        // Every wire has an INITIATED event
+        allLogs.push({
+          wireId: wire.id.toString(),
+          sender: wire.sender,
+          recipient: wire.recipient,
+          amount: formatUnits(BigInt(wire.amount), 6),
+          reference: wire.refHash,
+          txHash: wire.txHash,
+          type: 'INITIATED',
+          timestamp: new Date(wire.timestamp).getTime(),
         })
 
-        for (const log of initiated) {
-          allLogs.push({
-            wireId: log.args?.wireId?.toString() || '?',
-            sender: (log.args?.sender as string) || '',
-            recipient: (log.args?.recipient as string) || '',
-            amount: log.args?.amount ? formatUnits(log.args.amount as bigint, 6) : '0',
-            reference: (log.args?.refHash as string) || '',
-            txHash: log.transactionHash || '',
-            type: 'INITIATED',
-            timestamp: 0,
-          })
+        // Process associated events
+        for (const ev of (wire.events || [])) {
+          if (ev.eventType === 'Executed') {
+            allLogs.push({
+              wireId: wire.id.toString(),
+              sender: wire.sender,
+              recipient: wire.recipient,
+              amount: formatUnits(BigInt(wire.amount), 6),
+              reference: wire.refHash,
+              txHash: ev.txHash,
+              type: 'EXECUTED',
+              timestamp: new Date(ev.timestamp).getTime(),
+            })
+          } else if (ev.eventType === 'Approved') {
+            allLogs.push({
+              wireId: wire.id.toString(),
+              sender: ev.actor,
+              recipient: '',
+              amount: '',
+              reference: '',
+              txHash: ev.txHash,
+              type: 'APPROVED',
+              timestamp: new Date(ev.timestamp).getTime(),
+            })
+          } else if (ev.eventType === 'Cancelled') {
+            allLogs.push({
+              wireId: wire.id.toString(),
+              sender: ev.actor,
+              recipient: '',
+              amount: '',
+              reference: '',
+              txHash: ev.txHash,
+              type: 'CANCELLED',
+              timestamp: new Date(ev.timestamp).getTime(),
+            })
+          }
         }
-
-        // WireExecuted
-        const executed = await publicClient.getLogs({
-          address: CROSSWIRE_CONTRACT_ADDRESS,
-          event: {
-            type: 'event', name: 'WireExecuted',
-            inputs: [
-              { indexed: true, name: 'wireId', type: 'uint256' },
-              { indexed: true, name: 'sender', type: 'address' },
-              { indexed: true, name: 'recipient', type: 'address' },
-              { indexed: false, name: 'amount', type: 'uint256' },
-              { indexed: false, name: 'refHash', type: 'bytes32' },
-            ],
-          },
-          fromBlock: 0n, toBlock: 'latest',
-        })
-
-        for (const log of executed) {
-          allLogs.push({
-            wireId: log.args?.wireId?.toString() || '?',
-            sender: (log.args?.sender as string) || '',
-            recipient: (log.args?.recipient as string) || '',
-            amount: log.args?.amount ? formatUnits(log.args.amount as bigint, 6) : '0',
-            reference: (log.args?.refHash as string) || '',
-            txHash: log.transactionHash || '',
-            type: 'EXECUTED',
-            timestamp: 0,
-          })
-        }
-
-        // WireApproved
-        const approved = await publicClient.getLogs({
-          address: CROSSWIRE_CONTRACT_ADDRESS,
-          event: {
-            type: 'event', name: 'WireApproved',
-            inputs: [
-              { indexed: true, name: 'wireId', type: 'uint256' },
-              { indexed: true, name: 'approver', type: 'address' },
-              { indexed: false, name: 'approvalCount', type: 'uint256' },
-            ],
-          },
-          fromBlock: 0n, toBlock: 'latest',
-        })
-
-        for (const log of approved) {
-          allLogs.push({
-            wireId: log.args?.wireId?.toString() || '?',
-            sender: (log.args?.approver as string) || '',
-            recipient: '',
-            amount: '',
-            reference: '',
-            txHash: log.transactionHash || '',
-            type: 'APPROVED',
-            timestamp: 0,
-          })
-        }
-
-        allLogs.sort((a, b) => Number(b.wireId) - Number(a.wireId) || a.type.localeCompare(b.type))
-        setAuditLog(allLogs)
-      } catch (err) {
-        console.error('Audit fetch error:', err)
-      } finally {
-        setLoading(false)
       }
-    }
 
+      allLogs.sort((a, b) => Number(b.wireId) - Number(a.wireId) || a.type.localeCompare(b.type))
+      setAuditLog(allLogs)
+    } catch (err) {
+      console.error('Audit fetch error:', err)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
     fetchAuditLog()
-  }, [publicClient])
+  }, [])
 
   const truncAddr = (a: string) => a ? `${a.slice(0, 6)}...${a.slice(-4)}` : '—'
 
@@ -165,7 +126,8 @@ export default function CompliancePage() {
       await publicClient!.waitForTransactionReceipt({ hash })
       toast.success('Wire approved successfully!', { id: 'approve' })
       setSelectedWire(null)
-      // Force reload data by re-mounting or user refresh, or just update UI
+      // Force reload data
+      await fetchAuditLog()
     } catch (err: any) {
       console.error(err)
       toast.error(err?.shortMessage || 'Failed to approve', { id: 'approve' })

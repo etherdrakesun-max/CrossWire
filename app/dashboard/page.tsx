@@ -35,38 +35,17 @@ export default function DashboardPage() {
         })
         setBalance(formatUnits(bal as bigint, 6))
 
-        // Get contract stats (if deployed)
-        if (CROSSWIRE_CONTRACT_ADDRESS !== '0x0000000000000000000000000000000000000000') {
-          try {
-            const stats = await publicClient.readContract({
-              address: CROSSWIRE_CONTRACT_ADDRESS,
-              abi: crossWireRouterAbi,
-              functionName: 'getStats',
-            }) as [bigint, bigint]
-            setWireCount(stats[0].toString())
-            setTotalVolume(formatUnits(stats[1], 6))
-          } catch { /* Contract may not be deployed yet */ }
-
-          // Fetch recent WireExecuted events
-          try {
-            const logs = await publicClient.getLogs({
-              address: CROSSWIRE_CONTRACT_ADDRESS,
-              event: {
-                type: 'event',
-                name: 'WireExecuted',
-                inputs: [
-                  { indexed: true, name: 'wireId', type: 'uint256' },
-                  { indexed: true, name: 'sender', type: 'address' },
-                  { indexed: true, name: 'recipient', type: 'address' },
-                  { indexed: false, name: 'amount', type: 'uint256' },
-                  { indexed: false, name: 'refHash', type: 'bytes32' },
-                ],
-              },
-              fromBlock: 0n,
-              toBlock: 'latest',
-            })
-            setRecentWires(logs.slice(-10).reverse())
-          } catch { /* Events may not exist yet */ }
+        // Get stats & recent wires from API
+        try {
+          const statsRes = await fetch('/api/stats')
+          const statsData = await statsRes.json()
+          if (statsData) {
+            setWireCount(statsData.wireCount || '0')
+            setTotalVolume(formatUnits(BigInt(statsData.totalVolume || '0'), 6))
+            setRecentWires(statsData.recentWires || [])
+          }
+        } catch (err) {
+          console.error('Dashboard API fetch error:', err)
         }
       } catch (err) {
         console.error('Dashboard fetch error:', err)
