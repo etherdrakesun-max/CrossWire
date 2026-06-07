@@ -113,4 +113,35 @@ model Contact {
   @@unique([ownerAddr, address])
 }
 
+model Schedule {
+  id          Int      @id @default(autoincrement())
+  ownerAddr   String
+  recipient   String
+  amount      String
+  purposeCode Int      @default(1)
+  memo        String   @default("")
+  frequency   String   // daily, weekly, biweekly, monthly
+  dayOfWeek   Int?     // 0-6 for weekly
+  dayOfMonth  Int?     // 1-31 for monthly
+  startDate   DateTime
+  endDate     DateTime?
+  nextRunAt   DateTime
+  status      String   @default("ACTIVE") // ACTIVE, PAUSED, COMPLETED, CANCELLED
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  executions  Execution[]
+}
+
+model Execution {
+  id          Int      @id @default(autoincrement())
+  scheduleId  Int
+  schedule    Schedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+  wireId      Int?
+  txHash      String?
+  status      String   // SUCCESS, FAILED, PENDING
+  error       String?
+  executedAt  DateTime @default(now())
+}
+
+
 
