@@ -57,3 +57,30 @@ model Sponsorship {
   gasSavedUsd   Float
   timestamp     DateTime @default(now())
 }
+
+model GatewayBalance {
+  userAddress String   @id
+  balance     Float    @default(0.0)
+  updatedAt   DateTime @default(now())
+}
+
+model GatewayDeposit {
+  id          String   @id @default(uuid())
+  userAddress String
+  amount      Float
+  txHash      String
+  timestamp   DateTime @default(now())
+}
+
+model GatewayNanopayment {
+  id               String   @id @default(uuid())
+  sender           String
+  recipient        String
+  amount           Float
+  feeAmount        Float
+  memo             String   @default("")
+  purposeCode      Int      @default(0)
+  status           String   @default("PENDING")
+  timestamp        DateTime @default(now())
+  settlementTxHash String?
+}
