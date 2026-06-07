@@ -1,0 +1,438 @@
+'use client'
+
+import { useState, useEffect } from 'react'
+import { useParams, useRouter } from 'next/navigation'
+import { useAccount, useWalletClient, usePublicClient } from 'wagmi'
+import { ConnectButton } from '@rainbow-me/rainbowkit'
+import toast from 'react-hot-toast'
+import { generateQRCodeUrl } from '@/lib/qrcode'
+import { erc20Abi, crossWireRouterAbi } from '@/lib/contracts'
+import { USDC_ADDRESS, CROSSWIRE_CONTRACT_ADDRESS, getExplorerTxUrl } from '@/lib/arc-config'
+import { parseUnits, keccak256, encodePacked } from 'viem'
+import { 
+  FileText, 
+  Wallet, 
+  QrCode, 
+  Printer, 
+  ExternalLink, 
+  CheckCircle2, 
+  XCircle, 
+  Clock, 
+  Coins,
+  ShieldAlert,
+  ArrowLeft
+} from 'lucide-react'
+
+export default function PublicInvoicePaymentPage() {
+  const params = useParams()
+  const router = useRouter()
+  const slug = params?.slug as string
+
+  const { address, isConnected } = useAccount()
+  const { data: walletClient } = useWalletClient()
+  const publicClient = usePublicClient()
+
+  // State
+  const [invoice, setInvoice] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
+  const [paying, setPaying] = useState(false)
+  const [qrOpen, setQrOpen] = useState(false)
+
+  // Fetch invoice details
+  const fetchInvoice = async () => {
+    try {
+      const res = await fetch(`/api/invoices/${slug}`)
+      if (res.ok) {
+        const data = await res.json()
+        setInvoice(data)
+      } else {
+        toast.error('Invoice details not found')
+      }
+    } catch (err) {
+      console.error(err)
+      toast.error('Failed to load invoice details')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    if (slug) {
+      fetchInvoice()
+    }
+  }, [slug])
+
+  // Handle print
+  const handlePrint = () => {
+    window.print()
+  }
+
+  // Handle Payment Execution
+  const handlePay = async () => {
+    if (!isConnected || !address || !walletClient || !publicClient) {
+      toast.error('Please connect your wallet first')
+      return
+    }
+
+    if (invoice.status === 'PAID') {
+      toast.error('This invoice has already been settled')
+      return
+    }
+
+    if (invoice.payerAddr && invoice.payerAddr.toLowerCase() !== address.toLowerCase()) {
+      toast.error(`Access Denied: This invoice is restricted to payer address ${invoice.payerAddr}`)
+      return
+    }
+
+    setPaying(true)
+    const amountParsed = parseUnits(invoice.amount, 6) // USDC uses 6 decimals
+
+    try {
+      // 1. Approve USDC Spending allowance
+      const currentAllowance = await publicClient.readContract({
+        address: USDC_ADDRESS,
+        abi: erc20Abi,
+        functionName: 'allowance',
+        args: [address, CROSSWIRE_CONTRACT_ADDRESS],
+      }) as bigint
+
+      if (currentAllowance < amountParsed) {
+        toast.loading('Approving USDC allowance...', { id: 'pay-toast' })
+        const approveHash = await walletClient.writeContract({
+          address: USDC_ADDRESS,
+          abi: erc20Abi,
+          functionName: 'approve',
+          args: [CROSSWIRE_CONTRACT_ADDRESS, amountParsed],
+          chain: null,
+          account: address,
+        })
+        await publicClient.waitForTransactionReceipt({ hash: approveHash })
+      }
+
+      // 2. Submit payment to CrossWireRouterV2 contract
+      toast.loading('Broadcasting payment wire to Arc...', { id: 'pay-toast' })
+      const reference = keccak256(
+        encodePacked(
+          ['address', 'address', 'uint256', 'string'],
+          [address, invoice.payeeAddr as `0x${string}`, amountParsed, slug]
+        )
+      )
+
+      const txHash = await walletClient.writeContract({
+        address: CROSSWIRE_CONTRACT_ADDRESS,
+        abi: crossWireRouterAbi,
+        functionName: 'initiateWire',
+        args: [
+          invoice.payeeAddr as `0x${string}`,
+          amountParsed,
+          reference,
+          2, // purposeCode 2: Vendor invoice settlement
+          `Invoice: ${invoice.memo || slug}`
+        ],
+        chain: null,
+        account: address,
+      })
+
+      const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash })
+      let wireId = 0
+
+      // Read wireId from logs if possible
+      if (receipt.logs.length > 0) {
+        try {
+          const wireLog = receipt.logs.find((l: any) => l.topics[0])
+          if (wireLog && wireLog.topics[1]) {
+            wireId = Number(BigInt(wireLog.topics[1]))
+          }
+        } catch { /* OK */ }
+      }
+
+      // 3. Call API to mark as PAID
+      toast.loading('Finalizing settlement receipt...', { id: 'pay-toast' })
+      const updateRes = await fetch('/api/invoices', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: invoice.id,
+          status: 'PAID',
+          txHash,
+          wireId,
+          payerAddr: address
+        })
+      })
+
+      if (updateRes.ok) {
+        toast.success('Invoice settled on-chain successfully!', { id: 'pay-toast' })
+        fetchInvoice()
+      } else {
+        toast.error('Failed to log payment status', { id: 'pay-toast' })
+      }
+    } catch (err: any) {
+      console.error(err)
+      toast.error(`Payment failed: ${err.message || 'EVM execution failed'}`, { id: 'pay-toast' })
+    } finally {
+      setPaying(false)
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center h-screen bg-slate-950 text-white">
+        <div className="text-center">
+          <FileText size={48} className="animate-pulse text-primary mx-auto mb-4" />
+          <p className="text-sm text-secondary">Retrieving secure invoice details...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (!invoice) {
+    return (
+      <div className="flex justify-center items-center h-screen bg-slate-950 text-white">
+        <div className="text-center card p-8 max-w-md">
+          <ShieldAlert size={48} className="text-danger mx-auto mb-4" />
+          <h2>Invoice Not Found</h2>
+          <p className="text-sm text-muted mt-2">The request URL you followed does not correspond to an active CrossWire invoice.</p>
+          <button onClick={() => router.push('/')} className="btn primary mt-4">Return Home</button>
+        </div>
+      </div>
+    )
+  }
+
+  // Generate public pay link
+  const payLink = typeof window !== 'undefined' ? `${window.location.origin}/pay/${slug}` : ''
+  const qrCodeUrl = generateQRCodeUrl(payLink, 250)
+
+  return (
+    <div className="min-h-screen text-slate-100 p-8 flex flex-col items-center justify-center bg-slate-950" style={{ background: 'radial-gradient(ellipse at top, #1e1b4b 0%, #020617 100%)' }}>
+      
+      {/* Hide header and buttons in print mode */}
+      <style jsx global>{`
+        @media print {
+          body {
+            background: #ffffff !important;
+            color: #000000 !important;
+          }
+          .no-print {
+            display: none !important;
+          }
+          .print-paper {
+            border: none !important;
+            background: #ffffff !important;
+            color: #000000 !important;
+            box-shadow: none !important;
+            max-width: 100% !important;
+            width: 100% !important;
+            padding: 0 !important;
+            margin: 0 !important;
+          }
+          .text-muted, .text-secondary {
+            color: #4b5563 !important;
+          }
+          .font-semibold, .text-primary {
+            color: #000000 !important;
+          }
+        }
+      `}</style>
+
+      <div className="w-full max-w-3xl no-print flex justify-between items-center mb-6">
+        <button 
+          onClick={() => router.push('/invoices')}
+          className="btn secondary btn-sm flex items-center gap-1"
+        >
+          <ArrowLeft size={14} /> Back to Dashboard
+        </button>
+        <div className="flex gap-2">
+          <button onClick={() => setQrOpen(!qrOpen)} className="btn secondary btn-sm flex items-center gap-1">
+            <QrCode size={14} /> {qrOpen ? 'Hide QR' : 'Show QR'}
+          </button>
+          <button onClick={handlePrint} className="btn secondary btn-sm flex items-center gap-1">
+            <Printer size={14} /> Print / Export PDF
+          </button>
+          <ConnectButton chainStatus="none" showBalance={false} />
+        </div>
+      </div>
+
+      {/* QR Code Card if toggled */}
+      {qrOpen && (
+        <div className="w-full max-w-md card p-6 mb-6 text-center no-print animate-fade-in">
+          <h3 className="font-semibold mb-3">Scan to Settle Invoice</h3>
+          {qrCodeUrl && (
+            <img 
+              src={qrCodeUrl} 
+              alt="Payment QR Code" 
+              className="mx-auto border-4 border-white rounded-lg shadow-lg mb-3"
+              style={{ width: '200px', height: '200px' }}
+            />
+          )}
+          <p className="text-xs text-muted">Scan with a mobile wallet or camera to open this payment portal instantly.</p>
+        </div>
+      )}
+
+      {/* Invoice Sheet */}
+      <div className="w-full max-w-3xl card p-8 print-paper relative overflow-hidden bg-slate-900 border border-slate-800 shadow-2xl rounded-2xl">
+        
+        {/* Status banner */}
+        <div className="flex justify-between items-start mb-8 border-b border-slate-800 pb-6">
+          <div>
+            <h1 className="text-2xl font-bold flex items-center gap-2 text-slate-100">
+              <FileText className="text-primary" /> Invoice Receipt
+            </h1>
+            <p className="text-xs text-secondary mt-1">CrossWire Secure Pull-Payment Protocol</p>
+          </div>
+          <div className="text-right">
+            <span className={`badge text-sm uppercase px-3 py-1 ${
+              invoice.status === 'PAID' ? 'success' :
+              invoice.status === 'SENT' ? 'info' :
+              invoice.status === 'CANCELLED' ? 'danger' :
+              'gray'
+            }`}>
+              {invoice.status}
+            </span>
+            <div className="text-xs text-muted mt-2">Reference ID: {invoice.slug.slice(0, 16)}</div>
+          </div>
+        </div>
+
+        {/* Addresses detail */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '40px', marginBottom: '32px' }}>
+          <div>
+            <span className="text-xs text-secondary font-semibold uppercase tracking-wider block mb-2">Billed By (Merchant)</span>
+            <strong className="text-sm font-mono text-slate-100 block break-all">{invoice.payeeAddr}</strong>
+          </div>
+          <div>
+            <span className="text-xs text-secondary font-semibold uppercase tracking-wider block mb-2">Billed To (Client)</span>
+            {invoice.payerAddr ? (
+              <strong className="text-sm font-mono text-slate-100 block break-all">{invoice.payerAddr}</strong>
+            ) : (
+              <span className="text-sm text-secondary italic">Open link (Payable by any corporate account)</span>
+            )}
+          </div>
+        </div>
+
+        {/* Invoice Items Table */}
+        <div style={{ marginBottom: '32px' }}>
+          <h3 className="text-xs text-secondary font-semibold uppercase tracking-wider mb-3">Itemized Details</h3>
+          <table className="w-full text-left" style={{ borderCollapse: 'collapse' }}>
+            <thead>
+              <tr className="border-b border-slate-800 text-xs text-secondary">
+                <th style={{ paddingBottom: '10px' }}>Description</th>
+                <th style={{ paddingBottom: '10px', textAlign: 'center' }}>Quantity</th>
+                <th style={{ paddingBottom: '10px', textAlign: 'right' }}>Price (USDC)</th>
+                <th style={{ paddingBottom: '10px', textAlign: 'right' }}>Total (USDC)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {invoice.items && invoice.items.length > 0 ? (
+                invoice.items.map((item: any) => (
+                  <tr key={item.id} className="border-b border-slate-800/40 text-sm">
+                    <td style={{ padding: '12px 0' }}>{item.description}</td>
+                    <td style={{ padding: '12px 0', textAlign: 'center' }}>{item.quantity}</td>
+                    <td style={{ padding: '12px 0', textAlign: 'right' }}>{Number(item.unitPrice).toFixed(2)}</td>
+                    <td style={{ padding: '12px 0', textAlign: 'right', fontWeight: 600 }}>
+                      {(item.quantity * parseFloat(item.unitPrice)).toFixed(2)}
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr className="text-sm">
+                  <td style={{ padding: '12px 0' }}>General wire settlement</td>
+                  <td style={{ padding: '12px 0', textAlign: 'center' }}>1</td>
+                  <td style={{ padding: '12px 0', textAlign: 'right' }}>{Number(invoice.amount).toFixed(2)}</td>
+                  <td style={{ padding: '12px 0', textAlign: 'right', fontWeight: 600 }}>{Number(invoice.amount).toFixed(2)}</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Summary Details */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: '40px', borderTop: '1px solid var(--border-color)', paddingTop: '24px' }}>
+          <div>
+            <div className="mb-4">
+              <span className="text-xs text-secondary font-semibold uppercase tracking-wider block mb-1">Invoice Memo / Reference</span>
+              <p className="text-sm text-slate-100 italic">"{invoice.memo || 'No description provided'}"</p>
+            </div>
+            {invoice.dueDate && (
+              <div>
+                <span className="text-xs text-secondary font-semibold uppercase tracking-wider block mb-1">Due Date</span>
+                <p className="text-sm text-slate-100 flex items-center gap-1.5">
+                  <Clock size={14} className="text-warning" />
+                  {new Date(invoice.dueDate).toLocaleDateString(undefined, { 
+                    year: 'numeric', 
+                    month: 'long', 
+                    day: 'numeric' 
+                  })}
+                </p>
+              </div>
+            )}
+          </div>
+          
+          <div className="text-right">
+            <div className="flex justify-between items-center mb-2">
+              <span className="text-sm text-secondary">Currency:</span>
+              <span className="text-sm font-semibold">USDC (Arc Testnet)</span>
+            </div>
+            <div className="flex justify-between items-center mb-4 border-b border-slate-800 pb-3">
+              <span className="text-sm text-secondary">Protocol Fee (0.25%):</span>
+              <span className="text-sm text-muted">Paid by payer</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-lg font-bold text-slate-100">Total Due:</span>
+              <span className="text-2xl font-bold text-primary">{invoice.amount} USDC</span>
+            </div>
+          </div>
+        </div>
+
+        {/* PAID status or Settle form */}
+        {invoice.status === 'PAID' ? (
+          <div className="mt-8 p-4 bg-emerald-950/40 border border-emerald-800/60 rounded-xl flex items-center gap-3">
+            <CheckCircle2 size={24} className="text-success" />
+            <div>
+              <strong className="text-success text-sm block">Invoice Settled Gaslessly</strong>
+              <span className="text-xs text-secondary">
+                Paid at {new Date(invoice.paidAt).toLocaleDateString()} via transaction{' '}
+                <a 
+                  href={getExplorerTxUrl(invoice.txHash)} 
+                  target="_blank" 
+                  rel="noreferrer"
+                  className="text-link underline hover:text-white"
+                >
+                  {invoice.txHash.slice(0, 10)}...{invoice.txHash.slice(-8)}
+                </a>
+              </span>
+            </div>
+          </div>
+        ) : invoice.status === 'CANCELLED' ? (
+          <div className="mt-8 p-4 bg-rose-950/40 border border-rose-800/60 rounded-xl flex items-center gap-3">
+            <XCircle size={24} className="text-danger" />
+            <div>
+              <strong className="text-danger text-sm block">Invoice Cancelled</strong>
+              <span className="text-xs text-secondary">This billing request has been revoked by the issuer.</span>
+            </div>
+          </div>
+        ) : (
+          <div className="mt-8 no-print">
+            {isConnected ? (
+              <button
+                onClick={handlePay}
+                disabled={paying}
+                className="btn primary w-full text-center py-3 text-base font-semibold flex justify-center items-center gap-2"
+              >
+                <Coins size={18} />
+                {paying ? 'Authorizing & Settle Wire...' : `Pay Invoice (${invoice.amount} USDC)`}
+              </button>
+            ) : (
+              <div className="p-4 bg-slate-900 border border-slate-800 rounded-xl text-center">
+                <Wallet size={24} className="mx-auto mb-2 text-secondary" />
+                <p className="text-sm text-secondary mb-3">Connect your wallet to authorize USDC transfer on Arc Testnet.</p>
+                <div className="inline-block">
+                  <ConnectButton chainStatus="none" showBalance={false} />
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+      </div>
+    </div>
+  )
+}
