@@ -170,6 +170,36 @@ model InvoiceItem {
   unitPrice   String
 }
 
+model Agent {
+  id              Int      @id @default(autoincrement())
+  address         String   @unique
+  name            String
+  reputationScore Int      @default(100)
+  agentCardUri    String
+  capabilities    String   // JSON string or comma-separated list
+  status          String   @default("ACTIVE") // ACTIVE, INACTIVE
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  jobs            Job[]    @relation("AgentJobs")
+}
+
+model Job {
+  id          Int      @id @default(autoincrement())
+  slug        String   @unique @default(uuid())
+  title       String
+  description String
+  clientAddr  String
+  agentAddr   String
+  agent       Agent    @relation("AgentJobs", fields: [agentAddr], references: [address])
+  amount      String
+  status      String   @default("CREATED") // CREATED, SUBMITTED, APPROVED, DISPUTED
+  proofOfWork String?
+  txHash      String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+
 
 
 
