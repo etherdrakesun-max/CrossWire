@@ -6,7 +6,7 @@ import { useState } from 'react'
 import { useAccount, useDisconnect } from 'wagmi'
 import { ConnectButton } from '@rainbow-me/rainbowkit'
 import AuthModal from './AuthModal'
-import { LayoutGrid, Send, ArrowRightLeft, Rows, History, ShieldCheck, Blocks, Coins, BookOpen, Calendar, FileText } from 'lucide-react'
+import { LayoutGrid, Send, ArrowRightLeft, Rows, History, ShieldCheck, Blocks, Coins, BookOpen, Calendar, FileText, Bot, Briefcase } from 'lucide-react'
 
 interface NavItem {
   href: string
@@ -32,7 +32,10 @@ const NAV_ITEMS: NavGroup[] = [
     { href: '/treasury', icon: Coins, label: 'Treasury & FX' },
   ]},
 
-
+  { group: 'AI Agentic', items: [
+    { href: '/agents', icon: Bot, label: 'Agent Registry' },
+    { href: '/agents/jobs', icon: Briefcase, label: 'Job Escrows' },
+  ]},
 
   { group: 'Analytics', items: [
     { href: '/history', icon: History, label: 'Transaction Log' },
@@ -42,6 +45,7 @@ const NAV_ITEMS: NavGroup[] = [
     { href: '/integrations', icon: Blocks, label: 'Integrations', badge: '7' },
   ]},
 ]
+
 
 
 export default function Sidebar() {
