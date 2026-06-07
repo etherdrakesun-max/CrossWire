@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useAccount, usePublicClient, useWalletClient } from 'wagmi'
 import { parseUnits, formatUnits, encodePacked, keccak256 } from 'viem'
 import toast from 'react-hot-toast'
@@ -43,6 +43,22 @@ export default function SendPage() {
   const [wireId, setWireId] = useState('')
 
   const isContractDeployed = CROSSWIRE_CONTRACT_ADDRESS !== '0x0000000000000000000000000000000000000000'
+
+  const [isGasSponsored, setIsGasSponsored] = useState(true)
+
+  useEffect(() => {
+    if (!address) return
+    fetch(`/api/sponsor?userAddress=${address}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.userDailySpent >= 100.0) {
+          setIsGasSponsored(false)
+        } else {
+          setIsGasSponsored(true)
+        }
+      })
+      .catch(() => setIsGasSponsored(true))
+  }, [address])
 
   const { showModal, updateModal } = useModal()
   
@@ -310,6 +326,12 @@ export default function SendPage() {
                     <div className="flex justify-between" style={{ marginBottom: '6px' }}>
                       <span className="text-secondary">Fee:</span>
                       <span className="text-mono">${(parseFloat(amount) * 0.0025).toFixed(2)} USDC (0.25%)</span>
+                    </div>
+                    <div className="flex justify-between" style={{ marginBottom: '6px' }}>
+                      <span className="text-secondary">Gas Fee:</span>
+                      <span className={`font-semibold flex items-center gap-1 ${isGasSponsored ? 'text-success' : 'text-muted'}`}>
+                        {isGasSponsored ? 'Sponsored ✓' : 'User Paid'}
+                      </span>
                     </div>
                     <div className="flex justify-between font-semibold" style={{ borderTop: '1px solid var(--border)', paddingTop: '6px' }}>
                       <span>Recipient receives:</span>

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useAccount, usePublicClient, useWalletClient } from 'wagmi'
 import { parseUnits, keccak256, encodePacked } from 'viem'
 import toast from 'react-hot-toast'
@@ -38,6 +38,22 @@ export default function BatchPage() {
   const [batchTxHash, setBatchTxHash] = useState('')
 
   const isContractDeployed = CROSSWIRE_CONTRACT_ADDRESS !== '0x0000000000000000000000000000000000000000'
+
+  const [isGasSponsored, setIsGasSponsored] = useState(true)
+
+  useEffect(() => {
+    if (!address) return
+    fetch(`/api/sponsor?userAddress=${address}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.userDailySpent >= 100.0) {
+          setIsGasSponsored(false)
+        } else {
+          setIsGasSponsored(true)
+        }
+      })
+      .catch(() => setIsGasSponsored(true))
+  }, [address])
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -251,17 +267,24 @@ export default function BatchPage() {
               <Plus size={16} strokeWidth={1.5} /> Add Row
             </button>
             {rows.length > 0 && (
-              <button
-                className="btn primary"
-                onClick={handleBatchExecute}
-                disabled={isProcessing || !isConnected || !isContractDeployed}
-              >
-                {isProcessing ? (
-                  <><Clock size={16} strokeWidth={1.5} /> Processing...</>
-                ) : (
-                  <><Zap size={16} strokeWidth={1.5} /> Execute {rows.length} Wires</>
-                )}
-              </button>
+              <div className="flex items-center gap-3">
+                <button
+                  className="btn primary"
+                  onClick={handleBatchExecute}
+                  disabled={isProcessing || !isConnected || !isContractDeployed}
+                >
+                  {isProcessing ? (
+                    <><Clock size={16} strokeWidth={1.5} /> Processing...</>
+                  ) : (
+                    <><Zap size={16} strokeWidth={1.5} /> Execute {rows.length} Wires</>
+                  )}
+                </button>
+                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded" style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}>
+                  <span className={`text-xs font-semibold ${isGasSponsored ? 'text-success' : 'text-muted'}`}>
+                    Gas: {isGasSponsored ? 'Sponsored ✓' : 'User Paid'}
+                  </span>
+                </div>
+              </div>
             )}
           </div>
 

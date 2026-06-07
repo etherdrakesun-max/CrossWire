@@ -56,7 +56,8 @@ export default function TreasuryPage() {
   const [sponsorPayroll, setSponsorPayroll] = useState<boolean>(true)
   const [sponsorFX, setSponsorFX] = useState<boolean>(true)
   const [sponsorBridge, setSponsorBridge] = useState<boolean>(false)
-  const [gasSavings, setGasSavings] = useState<number>(144.50)
+  const [gasSavings, setGasSavings] = useState<number>(0)
+  const [dailySpent, setDailySpent] = useState<number>(0)
 
   // FX Rate definition (1 USDC = 0.92 EURC, 1 EURC = 1.08 USDC)
   const FX_RATE = 0.92
@@ -88,6 +89,32 @@ export default function TreasuryPage() {
     const interval = setInterval(fetchBalance, 10000)
     return () => clearInterval(interval)
   }, [address, publicClient])
+
+  // Fetch real gas savings from sponsorship API
+  useEffect(() => {
+    if (!address) {
+      setGasSavings(0)
+      setDailySpent(0)
+      return
+    }
+
+    const fetchGasSavings = async () => {
+      try {
+        const res = await fetch(`/api/sponsor?userAddress=${address}`)
+        if (res.ok) {
+          const data = await res.json()
+          setGasSavings(data.userTotal || 0)
+          setDailySpent(data.userDailySpent || 0)
+        }
+      } catch (err) {
+        console.error('Error fetching gas savings:', err)
+      }
+    }
+
+    fetchGasSavings()
+    const interval = setInterval(fetchGasSavings, 8000)
+    return () => clearInterval(interval)
+  }, [address])
 
   // Calculate swap output
   useEffect(() => {
@@ -611,11 +638,11 @@ export default function TreasuryPage() {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '16px' }}>
                   <div className="flex justify-between text-xs" style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px' }}>
                     <span className="text-muted">SWIFT Wire Processing Equivalent:</span>
-                    <span className="text-mono font-semibold">$105.00 USDC</span>
+                    <span className="text-mono font-semibold">${(gasSavings * 12.0).toFixed(2)} USDC</span>
                   </div>
                   <div className="flex justify-between text-xs" style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px' }}>
                     <span className="text-muted">Alternative L1 Gas Estimate:</span>
-                    <span className="text-mono font-semibold">${(gasSavings * 0.05).toFixed(2)} USDC</span>
+                    <span className="text-mono font-semibold">${(gasSavings * 4.5).toFixed(2)} USDC</span>
                   </div>
                   <div className="flex justify-between text-xs" style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px' }}>
                     <span className="text-muted">Arc Gas Sponsorship Savings:</span>
@@ -623,13 +650,17 @@ export default function TreasuryPage() {
                   </div>
                 </div>
 
-                {/* Simulated Sponsorship remaining indicator */}
+                {/* Real-time daily limit indicator */}
                 <div style={{ width: '100%', background: 'var(--border)', height: '6px', borderRadius: '3px', overflow: 'hidden' }}>
-                  <div style={{ width: `${(855 / 1000) * 100}%`, background: 'var(--success)', height: '100%' }}></div>
+                  <div style={{ 
+                    width: `${Math.min(100, (dailySpent / 100) * 100)}%`, 
+                    background: dailySpent >= 100 ? 'var(--error)' : dailySpent >= 80 ? 'var(--warning)' : 'var(--success)', 
+                    height: '100%' 
+                  }}></div>
                 </div>
                 <div className="flex justify-between text-muted mt-2" style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px' }}>
-                  <span>Sponsored Budget Used: ${gasSavings.toFixed(2)}</span>
-                  <span>Limit: $1,000.00 / month</span>
+                  <span>Daily Sponsored Used: ${dailySpent.toFixed(2)}</span>
+                  <span>Limit: $100.00 / day</span>
                 </div>
               </div>
             </div>
