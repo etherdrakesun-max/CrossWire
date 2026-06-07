@@ -99,3 +99,18 @@ model FxTrade {
   timestamp        DateTime @default(now())
 }
 
+model Contact {
+  id          Int      @id @default(autoincrement())
+  ownerAddr   String
+  name        String
+  address     String
+  label       String   @default("")
+  isFavorite  Boolean  @default(false)
+  lastUsedAt  DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([ownerAddr, address])
+}
+
+
