@@ -15,6 +15,7 @@ import {
 import { crossWireRouterAbi, erc20Abi } from '@/lib/contracts'
 import { Send, FileText, Unlock, Zap, CheckCircle, Plug, Link as LinkIcon, Info, FileSignature } from 'lucide-react'
 import { useModal } from '@/lib/modal-context'
+import MicroPaymentToggle from '../components/MicroPaymentToggle'
 
 const PURPOSE_CODES = [
   { code: 0, label: 'General Payment' },
@@ -44,6 +45,41 @@ export default function SendPage() {
 
   const isContractDeployed = CROSSWIRE_CONTRACT_ADDRESS !== '0x0000000000000000000000000000000000000000'
 
+  const [isMicroMode, setIsMicroMode] = useState(false)
+  const [gatewayBalance, setGatewayBalance] = useState<number>(0)
+  const [depositAmount, setDepositAmount] = useState('')
+  const [depositing, setDepositing] = useState(false)
+
+  const fetchGatewayBalance = async () => {
+    if (!address) return
+    try {
+      const res = await fetch(`/api/gateway/balance?userAddress=${address}`)
+      if (res.ok) {
+        const data = await res.json()
+        setGatewayBalance(data.balance || 0)
+      }
+    } catch (err) {
+      console.error('Error fetching gateway balance:', err)
+    }
+  }
+
+  // Fetch Gateway balance on mount / address change
+  useEffect(() => {
+    fetchGatewayBalance()
+  }, [address])
+
+  // Auto-detect micro mode for < $10 transfers
+  useEffect(() => {
+    const amt = parseFloat(amount)
+    if (!isNaN(amt) && amt > 0) {
+      if (amt < 10) {
+        setIsMicroMode(true)
+      } else {
+        setIsMicroMode(false)
+      }
+    }
+  }, [amount])
+
   const [isGasSponsored, setIsGasSponsored] = useState(true)
 
   useEffect(() => {
@@ -62,7 +98,150 @@ export default function SendPage() {
 
   const { showModal, updateModal } = useModal()
   
+  const handleGatewayDeposit = async () => {
+    if (!walletClient || !address || !publicClient) {
+      toast.error('Connect your wallet first')
+      return
+    }
+
+    const amtNum = parseFloat(depositAmount)
+    if (isNaN(amtNum) || amtNum <= 0) {
+      toast.error('Enter a valid deposit amount')
+      return
+    }
+
+    setDepositing(true)
+    showModal({
+      type: 'loading',
+      title: 'Depositing USDC into Gateway',
+      description: 'Sending USDC transaction to the Circle Gateway contract on Arc Testnet...'
+    })
+
+    try {
+      const amountParsed = parseUnits(depositAmount, USDC_DECIMALS)
+      
+      const txHash = await walletClient.writeContract({
+        address: USDC_ADDRESS,
+        abi: erc20Abi,
+        functionName: 'transfer',
+        args: [CROSSWIRE_CONTRACT_ADDRESS as `0x${string}`, amountParsed],
+        chain: null,
+        account: address!,
+      })
+
+      updateModal({
+        title: 'Verifying Gateway Deposit',
+        description: 'Waiting for blockchain settlement to update your Gateway balance...',
+        txStatus: 'confirming',
+        txHash
+      })
+
+      await publicClient.waitForTransactionReceipt({ hash: txHash })
+
+      const res = await fetch('/api/gateway/deposit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userAddress: address,
+          amount: amtNum,
+          txHash
+        })
+      })
+
+      if (res.ok) {
+        toast.success(`Successfully deposited $${amtNum.toFixed(2)} USDC to Gateway!`)
+        setDepositAmount('')
+        fetchGatewayBalance()
+        updateModal({
+          type: 'success',
+          title: 'Gateway Balance Funded!',
+          description: `Successfully deposited $${amtNum.toFixed(2)} USDC to your off-chain Gateway balance.`,
+          confirmText: 'Done',
+          onConfirm: () => { resetForm() }
+        })
+      } else {
+        throw new Error('Failed to update Gateway balance on server')
+      }
+    } catch (err: any) {
+      console.error('Deposit error:', err)
+      toast.error(err?.shortMessage || err?.message || 'Deposit failed')
+      showModal({
+        type: 'error',
+        title: 'Gateway Deposit Failed',
+        description: err?.shortMessage || 'The transaction request was rejected or reverted.',
+        errorDetails: err?.message || 'EVM revert.'
+      })
+    } finally {
+      setDepositing(false)
+    }
+  }
+
   const proceedExecution = async (amountParsed: bigint) => {
+    if (isMicroMode) {
+      setStep('executing')
+      showModal({
+        type: 'loading',
+        title: 'Executing Gateway Nanopayment',
+        description: 'Routing micropayment gaslessly off-chain via Circle Gateway...'
+      })
+
+      try {
+        const res = await fetch('/api/gateway/x402', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-payment-sender': address!,
+            'x-payment-signature': '0x-micro-mock-signature'
+          },
+          body: JSON.stringify({
+            recipient,
+            amount: amount,
+            memo: memo || 'CrossWire Nanopayment',
+            purposeCode
+          })
+        })
+
+        if (!res.ok) {
+          const errData = await res.json()
+          throw new Error(errData.message || errData.error || 'Nanopayment route failed')
+        }
+
+        const data = await res.json()
+        setTxHash(data.transferDetails.txHash)
+        setWireId(data.transferDetails.wireId.toString())
+        setStep('success')
+
+        updateModal({
+          type: 'success',
+          title: 'Nanopayment Settled!',
+          description: (
+            <div style={{ textAlign: 'left', display: 'flex', flexDirection: 'column', gap: '12px', fontSize: '13px', lineHeight: '1.6' }}>
+              <p>Successfully processed <strong>{amount} USDC</strong> to <strong>{recipient.slice(0, 6)}...{recipient.slice(-4)}</strong> off-chain gaslessly.</p>
+              <div className="callout" style={{ borderColor: 'var(--success)', background: 'var(--success-bg)', margin: 0 }}>
+                <strong className="text-success font-semibold">Circle Gateway Settled</strong>
+                <p className="text-success text-xs mt-1">This micropayment was instantly settled off-chain and queued for batch on-chain settlement.</p>
+              </div>
+            </div>
+          ),
+          confirmText: 'Done',
+          onConfirm: () => { resetForm() }
+        })
+
+        fetchGatewayBalance()
+        return
+      } catch (err: any) {
+        console.error('Nanopayment processing error:', err)
+        setStep('form')
+        showModal({
+          type: 'error',
+          title: 'Nanopayment Execution Failed',
+          description: err?.message || 'Gateway transaction could not be processed.',
+          errorDetails: err?.message || 'EVM revert.'
+        })
+        return
+      }
+    }
+
     setStep('approve')
     try {
       // Step 1: Check & Approve USDC allowance
@@ -321,21 +500,74 @@ export default function SendPage() {
                   />
                 </div>
 
-                {parseFloat(amount) > 0 && (
+                 {parseFloat(amount) > 0 && (
                   <div style={{ marginTop: '-16px', marginBottom: '24px', padding: '12px', background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: '2px', fontSize: '13px' }}>
                     <div className="flex justify-between" style={{ marginBottom: '6px' }}>
                       <span className="text-secondary">Fee:</span>
-                      <span className="text-mono">${(parseFloat(amount) * 0.0025).toFixed(2)} USDC (0.25%)</span>
+                      <span className="text-mono">
+                        {isMicroMode 
+                          ? `$${(parseFloat(amount) * 0.0025).toFixed(6)} USDC (0.25%)`
+                          : `$${(parseFloat(amount) * 0.0025).toFixed(2)} USDC (0.25%)`
+                        }
+                      </span>
                     </div>
                     <div className="flex justify-between" style={{ marginBottom: '6px' }}>
                       <span className="text-secondary">Gas Fee:</span>
-                      <span className={`font-semibold flex items-center gap-1 ${isGasSponsored ? 'text-success' : 'text-muted'}`}>
-                        {isGasSponsored ? 'Sponsored ✓' : 'User Paid'}
+                      <span className={`font-semibold flex items-center gap-1 ${isMicroMode || isGasSponsored ? 'text-success' : 'text-muted'}`}>
+                        {isMicroMode ? 'Sponsored (Gateway) ✓' : isGasSponsored ? 'Sponsored ✓' : 'User Paid'}
                       </span>
                     </div>
                     <div className="flex justify-between font-semibold" style={{ borderTop: '1px solid var(--border)', paddingTop: '6px' }}>
                       <span>Recipient receives:</span>
-                      <span className="text-mono">${(parseFloat(amount) * 0.9975).toFixed(2)} USDC</span>
+                      <span className="text-mono">
+                        {isMicroMode
+                          ? `$${(parseFloat(amount) * 0.9975).toFixed(6)} USDC`
+                          : `$${(parseFloat(amount) * 0.9975).toFixed(2)} USDC`
+                        }
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                <MicroPaymentToggle 
+                  isMicroMode={isMicroMode} 
+                  onToggle={setIsMicroMode} 
+                />
+
+                {isMicroMode && (
+                  <div style={{ marginBottom: '20px', padding: '16px', background: 'rgba(255,255,255,0.02)', border: '1px dashed var(--border)', borderRadius: '4px' }}>
+                    <div className="flex justify-between items-center" style={{ marginBottom: '12px' }}>
+                      <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>Gateway Balance:</span>
+                      <strong style={{ fontSize: '14px', color: 'var(--accent)' }}>${gatewayBalance.toFixed(6)} USDC</strong>
+                    </div>
+
+                    {parseFloat(amount) > gatewayBalance && (
+                      <div style={{ background: 'rgba(239, 68, 68, 0.05)', border: '1px solid rgba(239, 68, 68, 0.2)', padding: '12px', borderRadius: '4px', marginBottom: '12px' }}>
+                        <p style={{ margin: 0, fontSize: '12px', color: '#ef4444', lineHeight: '1.4' }}>
+                          Insufficient Gateway Balance. Please deposit USDC to cover this micropayment.
+                        </p>
+                      </div>
+                    )}
+
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <input
+                        className="input-notion"
+                        style={{ flex: 1, height: '36px', margin: 0 }}
+                        placeholder="USDC to Deposit"
+                        type="number"
+                        value={depositAmount}
+                        onChange={(e) => setDepositAmount(e.target.value)}
+                        disabled={depositing}
+                      />
+                      <button
+                        type="button"
+                        className="btn primary"
+                        style={{ height: '36px', padding: '0 16px', background: 'var(--accent)', color: 'white', borderRadius: '4px', fontSize: '12px', fontWeight: 600 }}
+                        onClick={handleGatewayDeposit}
+                        disabled={depositing}
+                      >
+                        {depositing ? 'Depositing...' : 'Deposit'}
+                      </button>
                     </div>
                   </div>
                 )}

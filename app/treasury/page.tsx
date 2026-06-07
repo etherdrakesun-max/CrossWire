@@ -58,6 +58,8 @@ export default function TreasuryPage() {
   const [sponsorBridge, setSponsorBridge] = useState<boolean>(false)
   const [gasSavings, setGasSavings] = useState<number>(0)
   const [dailySpent, setDailySpent] = useState<number>(0)
+  const [gatewayBalance, setGatewayBalance] = useState<number>(0)
+  const [isSettling, setIsSettling] = useState<boolean>(false)
 
   // FX Rate definition (1 USDC = 0.92 EURC, 1 EURC = 1.08 USDC)
   const FX_RATE = 0.92
@@ -115,6 +117,86 @@ export default function TreasuryPage() {
     const interval = setInterval(fetchGasSavings, 8000)
     return () => clearInterval(interval)
   }, [address])
+
+  const fetchGatewayBalance = async () => {
+    if (!address) {
+      setGatewayBalance(0)
+      return
+    }
+    try {
+      const res = await fetch(`/api/gateway/balance?userAddress=${address}`)
+      if (res.ok) {
+        const data = await res.json()
+        setGatewayBalance(data.balance || 0)
+      }
+    } catch (err) {
+      console.error('Error fetching gateway balance:', err)
+    }
+  }
+
+  useEffect(() => {
+    fetchGatewayBalance()
+    const interval = setInterval(fetchGatewayBalance, 7000)
+    return () => clearInterval(interval)
+  }, [address])
+
+  const handleBatchSettle = async () => {
+    setIsSettling(true)
+    showModal({
+      type: 'loading',
+      title: 'Batch Settling Nanopayments',
+      description: 'Aggregating accumulated micro-fees off-chain and broadcasting batch settlement to Arc L1...'
+    })
+
+    try {
+      const res = await fetch('/api/gateway/balance', {
+        method: 'POST'
+      })
+
+      if (!res.ok) {
+        throw new Error('Batch settlement API call failed')
+      }
+
+      const data = await res.json()
+
+      if (data.settledCount === 0) {
+        updateModal({
+          type: 'success',
+          title: 'Batch Settlement Complete',
+          description: 'No pending micropayment fees require settlement at this time.',
+          confirmText: 'Done'
+        })
+        return
+      }
+
+      updateModal({
+        type: 'success',
+        title: 'Nanopayments Settled On-Chain!',
+        description: (
+          <div style={{ textAlign: 'left', display: 'flex', flexDirection: 'column', gap: '12px', fontSize: '13px', lineHeight: '1.6' }}>
+            <p>Successfully aggregated and settled <strong>{data.settledCount} pending nanopayments</strong> totaling <strong>${data.totalSettledAmount.toFixed(6)} USDC</strong>.</p>
+            <div className="callout" style={{ borderColor: 'var(--success)', background: 'var(--success-bg)', margin: 0 }}>
+              <strong className="text-success font-semibold">Settlement Tx Hash</strong>
+              <p className="text-mono text-xs mt-1" style={{ wordBreak: 'break-all' }}>{data.settlementTxHash}</p>
+            </div>
+          </div>
+        ),
+        confirmText: 'Done'
+      })
+
+      fetchGatewayBalance()
+    } catch (err: any) {
+      console.error('Settle batch error:', err)
+      updateModal({
+        type: 'error',
+        title: 'Batch Settlement Failed',
+        description: err?.message || 'Error executing settlement transaction.',
+        errorDetails: err?.stack || ''
+      })
+    } finally {
+      setIsSettling(false)
+    }
+  }
 
   // Calculate swap output
   useEffect(() => {
@@ -437,8 +519,56 @@ export default function TreasuryPage() {
                           </td>
                         </tr>
                       ))}
+                      {/* Circle Gateway off-chain balance */}
+                      <tr>
+                        <td>
+                          <div className="flex items-center gap-2">
+                            <span style={{ 
+                              width: '8px', 
+                              height: '8px', 
+                              borderRadius: '50%', 
+                              background: 'var(--accent)' 
+                            }}></span>
+                            <strong>Circle Gateway</strong>
+                          </div>
+                        </td>
+                        <td>
+                          <span className="badge purple">Off-chain</span>
+                        </td>
+                        <td style={{ textAlign: 'right', fontWeight: 'bold', color: 'var(--accent)' }}>
+                          {gatewayBalance.toFixed(6)} USDC
+                        </td>
+                      </tr>
                     </tbody>
                   </table>
+                </div>
+              </div>
+
+              <div className="card" style={{ marginTop: '24px' }}>
+                <div className="card-header">
+                  <span style={{ fontWeight: 600 }}>Circle Gateway Operations</span>
+                  <span className="badge purple">Nanopayments</span>
+                </div>
+                <div className="card-body">
+                  <p className="text-muted text-xs" style={{ marginBottom: '16px' }}>
+                    Micropayments are settled off-chain to circumvent transaction costs. Execute batch settlement to consolidate off-chain fees back onto the Arc L1 blockchain.
+                  </p>
+                  
+                  <div className="flex justify-between items-center" style={{ marginBottom: '16px' }}>
+                    <span className="text-xs text-secondary">Gateway Float:</span>
+                    <strong className="text-mono font-semibold" style={{ color: 'var(--accent)' }}>
+                      ${gatewayBalance.toFixed(6)} USDC
+                    </strong>
+                  </div>
+
+                  <button
+                    className="btn primary lg flex items-center justify-center gap-2"
+                    style={{ width: '100%', background: 'var(--accent)', border: 'none' }}
+                    onClick={handleBatchSettle}
+                    disabled={isSettling}
+                  >
+                    {isSettling ? 'Broadcasting Settle...' : 'Settle Accumulated Wires'}
+                  </button>
                 </div>
               </div>
 
