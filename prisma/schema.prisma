@@ -41,3 +41,11 @@ model SyncState {
   id              Int    @id @default(1)
   lastBlockNumber Int    @default(0)
 }
+
+model PasskeyUser {
+  id            String   @id @default(uuid())
+  credentialId  String   @unique
+  walletAddress String   @unique
+  username      String   @unique
+  createdAt     DateTime @default(now())
+}
