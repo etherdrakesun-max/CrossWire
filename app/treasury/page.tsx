@@ -1,13 +1,21 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useAccount, usePublicClient, useWalletClient } from 'wagmi'
-import { formatUnits, parseUnits } from 'viem'
+import { useAccount, usePublicClient, useWalletClient, useSwitchChain } from 'wagmi'
+import { formatUnits, parseUnits, createPublicClient, http, parseEventLogs, keccak256 } from 'viem'
 import toast from 'react-hot-toast'
 import Sidebar from '../components/Sidebar'
 import Topbar from '../components/Topbar'
 import { USDC_ADDRESS } from '@/lib/arc-config'
 import { erc20Abi } from '@/lib/contracts'
+import { 
+  tokenMessengerAbi, 
+  messageTransmitterAbi, 
+  addressToBytes32, 
+  pollAttestation 
+} from '@/lib/cctp-v2'
+import { CCTP_CHAINS } from '@/lib/chains'
+
 import { 
   Coins, 
   TrendingUp, 
@@ -34,10 +42,15 @@ interface ChainBalance {
 export default function TreasuryPage() {
   const { address, isConnected } = useAccount()
   const publicClient = usePublicClient()
+  const { data: walletClient } = useWalletClient()
+  const { switchChainAsync } = useSwitchChain()
   const { showModal, updateModal } = useModal()
 
-  // Real-time USDC Balance on Arc Testnet
+  // Real-time USDC Balances across chains
   const [arcBalance, setArcBalance] = useState<string>('0.00')
+  const [ethereumSepoliaBal, setEthereumSepoliaBal] = useState<string>('0.00')
+  const [baseSepoliaBal, setBaseSepoliaBal] = useState<string>('0.00')
+  const [arbitrumSepoliaBal, setArbitrumSepoliaBal] = useState<string>('0.00')
   const [loadingBalance, setLoadingBalance] = useState<boolean>(true)
 
   // Swap State
@@ -47,10 +60,7 @@ export default function TreasuryPage() {
   const [amountOut, setAmountOut] = useState<string>('0.00')
   const [isSwapping, setIsSwapping] = useState<boolean>(false)
 
-  // Mock balances for other chains to demonstrate Circle Unified Balance SDK
-  const [ethereumSepoliaBal, setEthereumSepoliaBal] = useState<string>('2,500.00')
-  const [baseSepoliaBal, setBaseSepoliaBal] = useState<string>('1,850.50')
-  const [arbitrumSepoliaBal, setArbitrumSepoliaBal] = useState<string>('3,200.15')
+
 
   // Arc Gas Sponsorship Policy & Analytics
   const [sponsorPayroll, setSponsorPayroll] = useState<boolean>(true)
@@ -68,33 +78,35 @@ export default function TreasuryPage() {
   const [tradeHistory, setTradeHistory] = useState<any[]>([])
   const [isQuoteLoading, setIsQuoteLoading] = useState<boolean>(false)
 
-  // Fetch real USDC balance on Arc Testnet
+  // Fetch real USDC balances across multiple chains
   useEffect(() => {
-    if (!address || !publicClient) {
+    if (!address) {
       setLoadingBalance(false)
       return
     }
 
-    const fetchBalance = async () => {
+    const fetchBalances = async () => {
       try {
-        const bal = await publicClient.readContract({
-          address: USDC_ADDRESS,
-          abi: erc20Abi,
-          functionName: 'balanceOf',
-          args: [address],
-        })
-        setArcBalance(formatUnits(bal as bigint, 6))
+        const res = await fetch(`/api/balances?userAddress=${address}`)
+        if (res.ok) {
+          const data = await res.json()
+          setArcBalance(data.Arc_Testnet?.balance || '0.00')
+          setEthereumSepoliaBal(data.Ethereum_Sepolia?.balance || '0.00')
+          setBaseSepoliaBal(data.Base_Sepolia?.balance || '0.00')
+          setArbitrumSepoliaBal(data.Arbitrum_Sepolia?.balance || '0.00')
+        }
       } catch (err) {
-        console.error('Error fetching balance:', err)
+        console.error('Error fetching multi-chain balances:', err)
       } finally {
         setLoadingBalance(false)
       }
     }
 
-    fetchBalance()
-    const interval = setInterval(fetchBalance, 10000)
+    fetchBalances()
+    const interval = setInterval(fetchBalances, 8000)
     return () => clearInterval(interval)
-  }, [address, publicClient])
+  }, [address])
+
 
   // Fetch real gas savings from sponsorship API
   useEffect(() => {
@@ -404,42 +416,180 @@ export default function TreasuryPage() {
   }
 
   // Consolidated liquidity trigger
-  const handleConsolidate = () => {
+  const handleConsolidate = async () => {
+    if (!isConnected || !address) {
+      toast.error('Connect your wallet first')
+      return
+    }
+
+    // Identify chains with balance > 0 to sweep
+    const sweeps = [
+      { key: 'Ethereum_Sepolia', name: 'Ethereum Sepolia', bal: parseFloat(ethereumSepoliaBal.replace(/,/g, '')) },
+      { key: 'Base_Sepolia', name: 'Base Sepolia', bal: parseFloat(baseSepoliaBal.replace(/,/g, '')) },
+      { key: 'Arbitrum_Sepolia', name: 'Arbitrum Sepolia', bal: parseFloat(arbitrumSepoliaBal.replace(/,/g, '')) },
+    ].filter(s => !isNaN(s.bal) && s.bal > 0)
+
+    if (sweeps.length === 0) {
+      toast.error('No external treasury balances available to sweep. Deposit USDC on Ethereum, Base, or Arbitrum Sepolia first.')
+      return
+    }
+
     showModal({
       type: 'confirm',
       title: 'Consolidate Cross-Chain Balances',
-      description: 'This will trigger Circle CCTP to sweep all available testnet USDC across Base, Arbitrum, and Ethereum into your Arc Unified Treasury. Settle in under 20 seconds.',
+      description: `This will sweep a total of $${sweeps.reduce((acc, s) => acc + s.bal, 0).toFixed(2)} USDC from ${sweeps.map(s => s.name).join(', ')} into your Arc Testnet native treasury using CCTP. Settle time is approximately 20-30s per network.`,
       confirmText: 'Begin Sweep',
       cancelText: 'Cancel',
-      onConfirm: () => {
+      onConfirm: async () => {
         showModal({
           type: 'loading',
-          title: 'Sweeping Treasury Liquidity',
-          description: 'Initiating atomic CCTP burn transactions on Base and Arbitrum Sepolia. Fetching attestation logs...'
+          title: 'Treasury Restructuring',
+          description: 'Initializing multi-chain CCTP routing pipeline...'
         })
-        setTimeout(() => {
-          updateModal({
-            title: 'Validating signatures',
-            description: 'Acquiring Circle attestation signatures for Base Sepolia (0x81da...) and Arbitrum (0x29ef...)'
-          })
-        }, 2000)
-        setTimeout(() => {
+
+        try {
+          for (let i = 0; i < sweeps.length; i++) {
+            const item = sweeps[i]
+            const chainConfig = CCTP_CHAINS[item.key]
+            const rawAmount = parseUnits(item.bal.toString(), 6)
+
+            updateModal({
+              type: 'loading',
+              title: `Sweeping ${item.name} (${i + 1}/${sweeps.length})`,
+              description: `Switching wallet network to ${item.name}...`
+            })
+
+            // Switch to source chain
+            await switchChainAsync({ chainId: chainConfig.id })
+
+            // Approve TokenMessenger
+            updateModal({
+              type: 'loading',
+              title: `Sweeping ${item.name} (${i + 1}/${sweeps.length})`,
+              description: `[1/4] Approving TokenMessenger to burn $${item.bal} USDC...`
+            })
+            const appHash = await walletClient!.writeContract({
+              address: chainConfig.usdcAddress,
+              abi: erc20Abi,
+              functionName: 'approve',
+              args: [chainConfig.tokenMessenger, rawAmount],
+              account: address!,
+            })
+
+            const sourcePublicClient = createPublicClient({ transport: http(chainConfig.rpcUrl) })
+            await sourcePublicClient.waitForTransactionReceipt({ hash: appHash })
+
+            // Deposit For Burn
+            updateModal({
+              type: 'loading',
+              title: `Sweeping ${item.name} (${i + 1}/${sweeps.length})`,
+              description: `[2/4] Executing CCTP burn transaction on ${item.name}...`
+            })
+            const recipientBytes = addressToBytes32(address!)
+            const emptyBytes32 = addressToBytes32('0x0000000000000000000000000000000000000000')
+            const burnHash = await walletClient!.writeContract({
+              address: chainConfig.tokenMessenger,
+              abi: tokenMessengerAbi,
+              functionName: 'depositForBurn',
+              args: [
+                rawAmount,
+                CCTP_CHAINS.Arc_Testnet.cctpDomain, // 26
+                recipientBytes,
+                chainConfig.usdcAddress,
+                emptyBytes32,
+                0n,
+                2000
+              ],
+              account: address!,
+            })
+
+            const burnReceipt = await sourcePublicClient.waitForTransactionReceipt({ hash: burnHash })
+
+            // Parse message bytes from event logs
+            updateModal({
+              type: 'loading',
+              title: `Sweeping ${item.name} (${i + 1}/${sweeps.length})`,
+              description: `[3/4] Fetching signatures from Circle validator network...`
+            })
+
+            const logs = parseEventLogs({
+              abi: messageTransmitterAbi,
+              logs: burnReceipt.logs,
+              eventName: 'MessageSent'
+            })
+            if (!logs || logs.length === 0) {
+              throw new Error(`MessageSent log not found on ${item.name}`)
+            }
+
+            const messageBytes = logs[0].args.message
+            const messageHash = keccak256(messageBytes)
+
+            const attestationSig = await pollAttestation(messageHash, (status) => {
+              updateModal({
+                type: 'loading',
+                title: `Sweeping ${item.name} (${i + 1}/${sweeps.length})`,
+                description: `[3/4] Validator Signatures: ${status}`
+              })
+            })
+
+            // Switch to Arc Testnet to claim / mint
+            const arcConfig = CCTP_CHAINS.Arc_Testnet
+            updateModal({
+              type: 'loading',
+              title: `Sweeping ${item.name} (${i + 1}/${sweeps.length})`,
+              description: `Switching wallet to Arc Testnet to claim USDC...`
+            })
+            await switchChainAsync({ chainId: arcConfig.id })
+
+            // Finalize receiveMessage
+            updateModal({
+              type: 'loading',
+              title: `Sweeping ${item.name} (${i + 1}/${sweeps.length})`,
+              description: `[4/4] Minting swept USDC on Arc Testnet...`
+            })
+
+            const claimHash = await walletClient!.writeContract({
+              address: arcConfig.messageTransmitter,
+              abi: messageTransmitterAbi,
+              functionName: 'receiveMessage',
+              args: [messageBytes, attestationSig as `0x${string}`],
+              account: address!,
+            })
+
+            const arcPublicClient = createPublicClient({ transport: http(arcConfig.rpcUrl) })
+            await arcPublicClient.waitForTransactionReceipt({ hash: claimHash })
+          }
+
+          // Trigger balance refetch
+          const res = await fetch(`/api/balances?userAddress=${address}`)
+          if (res.ok) {
+            const data = await res.json()
+            setArcBalance(data.Arc_Testnet?.balance || '0.00')
+            setEthereumSepoliaBal(data.Ethereum_Sepolia?.balance || '0.00')
+            setBaseSepoliaBal(data.Base_Sepolia?.balance || '0.00')
+            setArbitrumSepoliaBal(data.Arbitrum_Sepolia?.balance || '0.00')
+          }
+
           updateModal({
             type: 'success',
             title: 'Treasury Restructured!',
-            description: 'All assets have been successfully consolidated into Arc Testnet! Aggregated balance is now fully liquid.',
-            confirmText: 'Acknowledge'
+            description: `All multi-chain USDC positions have been successfully consolidated into Arc Testnet native treasury!`,
+            confirmText: 'Done'
           })
-          setEthereumSepoliaBal('0.00')
-          setBaseSepoliaBal('0.00')
-          setArbitrumSepoliaBal('0.00')
-          // Add to Arc balance
-          const totalUSDC = parseFloat(arcBalance) + 2500 + 1850.5 + 3200.15
-          setArcBalance(totalUSDC.toFixed(2))
-        }, 4500)
+          toast.success('Treasury consolidation completed successfully!')
+        } catch (err: any) {
+          console.error('Sweep consolidation error:', err)
+          updateModal({
+            type: 'error',
+            title: 'Treasury Sweep Failed',
+            description: err?.message || 'Transaction was reverted or aborted by user.',
+            errorDetails: err?.stack || ''
+          })
+        }
       }
     })
   }
+
 
   const chains: ChainBalance[] = [
     { id: 'arc', name: 'Arc Testnet (Native)', balance: parseFloat(arcBalance).toLocaleString('en-US', { minimumFractionDigits: 2 }), status: 'active', symbol: 'USDC' },
