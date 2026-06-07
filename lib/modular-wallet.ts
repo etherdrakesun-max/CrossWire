@@ -16,6 +16,7 @@ import {
   WebAuthnMode 
 } from '@circle-fin/modular-wallets-core'
 import { toWebAuthnAccount } from 'viem/account-abstraction'
+import { estimateGasSavings, getPaymasterUrl } from './paymaster'
 
 const CLIENT_KEY = process.env.NEXT_PUBLIC_CIRCLE_CLIENT_KEY || 'demo_client_key'
 const CLIENT_URL = process.env.NEXT_PUBLIC_CIRCLE_CLIENT_URL || 'https://modular-sdk.circle.com/v1/rpc/w3s'
@@ -170,13 +171,77 @@ export function circleModularWalletConnector() {
               }
             })
           })
-          const hash = await walletClient.sendTransaction({
+
+          // 1. Call our server route to validate sponsorship eligibility
+          let isSponsored = false
+          let estimatedSavedUsd = 0.15
+
+          try {
+            const res = await fetch('/api/sponsor', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                action: 'validate',
+                userAddress: activeSession?.walletAddress,
+                target: tx.to,
+                data: tx.data
+              })
+            })
+            if (res.ok) {
+              const data = await res.json()
+              if (data.sponsored) {
+                isSponsored = true
+                estimatedSavedUsd = await estimateGasSavings(
+                  publicModularClient,
+                  tx.to,
+                  tx.data,
+                  activeSession!.walletAddress
+                )
+              }
+            }
+          } catch (sponsorErr) {
+            console.error('Sponsorship validation failed, defaulting to user-paid execution:', sponsorErr)
+          }
+
+          // 2. Build the transaction call parameter object
+          const txParams: any = {
             account,
             to: tx.to as Address,
             data: tx.data as Hex,
             value: tx.value ? BigInt(tx.value) : undefined,
             gas: tx.gas ? BigInt(tx.gas) : undefined,
-          } as any)
+          }
+
+          // 3. Apply the paymasterService capability if sponsored
+          if (isSponsored) {
+            txParams.capabilities = {
+              paymasterService: {
+                url: getPaymasterUrl()
+              }
+            }
+          }
+
+          // 4. Send the UserOperation transaction
+          const hash = await walletClient.sendTransaction(txParams)
+
+          // 5. If sponsored, record the gas savings database entry on the server
+          if (isSponsored) {
+            try {
+              await fetch('/api/sponsor', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  action: 'record',
+                  userAddress: activeSession?.walletAddress,
+                  txHash: hash,
+                  gasSavedUsd: estimatedSavedUsd
+                })
+              })
+            } catch (recordErr) {
+              console.error('Failed to record gas savings in database:', recordErr)
+            }
+          }
+
           return hash
         }
 
