@@ -61,8 +61,12 @@ export default function TreasuryPage() {
   const [gatewayBalance, setGatewayBalance] = useState<number>(0)
   const [isSettling, setIsSettling] = useState<boolean>(false)
 
-  // FX Rate definition (1 USDC = 0.92 EURC, 1 EURC = 1.08 USDC)
-  const FX_RATE = 0.92
+  // StableFX Live Quotes and Trade States
+  const [liveQuote, setLiveQuote] = useState<any>(null)
+  const [activeQuote, setActiveQuote] = useState<any>(null)
+  const [quoteExpiryRemaining, setQuoteExpiryRemaining] = useState<number>(0)
+  const [tradeHistory, setTradeHistory] = useState<any[]>([])
+  const [isQuoteLoading, setIsQuoteLoading] = useState<boolean>(false)
 
   // Fetch real USDC balance on Arc Testnet
   useEffect(() => {
@@ -140,6 +144,96 @@ export default function TreasuryPage() {
     return () => clearInterval(interval)
   }, [address])
 
+  // StableFX Live Polling & Active Quote hooks
+  const fetchLiveRate = async () => {
+    try {
+      const res = await fetch(`/api/fx/quote?from=${tokenIn}&to=${tokenOut}&amount=1.0`)
+      if (res.ok) {
+        const data = await res.json()
+        setLiveQuote(data)
+      }
+    } catch (err) {
+      console.error('Error fetching live FX rate:', err)
+    }
+  }
+
+  useEffect(() => {
+    fetchLiveRate()
+    const interval = setInterval(fetchLiveRate, 5000)
+    return () => clearInterval(interval)
+  }, [tokenIn, tokenOut])
+
+  const fetchTradeHistory = async () => {
+    if (!address) return
+    try {
+      const res = await fetch(`/api/fx/execute?userAddress=${address}`)
+      if (res.ok) {
+        const data = await res.json()
+        setTradeHistory(data)
+      }
+    } catch (err) {
+      console.error('Error fetching trade history:', err)
+    }
+  }
+
+  useEffect(() => {
+    fetchTradeHistory()
+    const interval = setInterval(fetchTradeHistory, 10000)
+    return () => clearInterval(interval)
+  }, [address])
+
+  const fetchActiveQuote = async (amount: string) => {
+    if (!amount || parseFloat(amount) <= 0) {
+      setActiveQuote(null)
+      setAmountOut('0.00')
+      return
+    }
+    setIsQuoteLoading(true)
+    try {
+      const res = await fetch(`/api/fx/quote?from=${tokenIn}&to=${tokenOut}&amount=${amount}`)
+      if (res.ok) {
+        const data = await res.json()
+        setActiveQuote(data)
+        setAmountOut(data.toAmount.toFixed(2))
+      }
+    } catch (err) {
+      console.error('Error fetching active quote:', err)
+    } finally {
+      setIsQuoteLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      fetchActiveQuote(amountIn)
+    }, 450)
+    return () => clearTimeout(handler)
+  }, [amountIn, tokenIn])
+
+  useEffect(() => {
+    if (!activeQuote) {
+      setQuoteExpiryRemaining(0)
+      return
+    }
+
+    const calculateRemaining = () => {
+      const diff = new Date(activeQuote.expiresAt).getTime() - Date.now()
+      return Math.max(0, Math.ceil(diff / 1000))
+    }
+
+    setQuoteExpiryRemaining(calculateRemaining())
+
+    const interval = setInterval(() => {
+      const rem = calculateRemaining()
+      setQuoteExpiryRemaining(rem)
+      if (rem <= 0) {
+        fetchActiveQuote(amountIn)
+      }
+    }, 1000)
+
+    return () => clearInterval(interval)
+  }, [activeQuote])
+
   const handleBatchSettle = async () => {
     setIsSettling(true)
     showModal({
@@ -198,26 +292,12 @@ export default function TreasuryPage() {
     }
   }
 
-  // Calculate swap output
-  useEffect(() => {
-    const amt = parseFloat(amountIn)
-    if (isNaN(amt) || amt <= 0) {
-      setAmountOut('0.00')
-      return
-    }
-
-    if (tokenIn === 'USDC') {
-      setAmountOut((amt * FX_RATE).toFixed(2))
-    } else {
-      setAmountOut((amt / FX_RATE).toFixed(2))
-    }
-  }, [amountIn, tokenIn])
-
   const handleSwapTokens = () => {
     setTokenIn(prev => prev === 'USDC' ? 'EURC' : 'USDC')
     setTokenOut(prev => prev === 'USDC' ? 'EURC' : 'USDC')
     setAmountIn('')
     setAmountOut('0.00')
+    setActiveQuote(null)
   }
 
   // Calculate Aggregated Unified Balance
@@ -229,85 +309,94 @@ export default function TreasuryPage() {
     return (arc + eth + base + arb).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
   }
 
-  // Trigger FX Swap
+  // Trigger real StableFX Swap Taker Flow
   const handleExecuteSwap = async () => {
     if (!isConnected) {
       toast.error('Connect your wallet first')
       return
     }
-    const amt = parseFloat(amountIn)
-    if (isNaN(amt) || amt <= 0) {
-      toast.error('Enter a valid amount to swap')
+    if (!activeQuote) {
+      toast.error('Please request or wait for a valid quote')
+      return
+    }
+    if (quoteExpiryRemaining <= 0) {
+      toast.error('Quote has expired. Fetching a new one...')
+      fetchActiveQuote(amountIn)
       return
     }
 
     setIsSwapping(true)
     showModal({
       type: 'loading',
-      title: 'Initiating FX Swap',
-      description: `Preparing StableFX swap of ${amountIn} ${tokenIn} to ${amountOut} ${tokenOut} via Circle App Kit...`
+      title: 'Executing StableFX Swap',
+      description: `Finalizing swap of ${activeQuote.fromAmount} ${activeQuote.fromCurrency} to ${activeQuote.toAmount} ${activeQuote.toCurrency}...`
     })
 
     try {
-      // Import App Kit dynamically
-      const { appKitSwap } = await import('@/lib/app-kit')
+      const res = await fetch('/api/fx/execute', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          quote: activeQuote,
+          userAddress: address,
+        }),
+      })
 
-      // Since App Kit requires an enterprise kitKey, we will attempt the execution,
-      // and provide an elegant, professional mock experience if the API key is not configured,
-      // ensuring the code is fully executable and never crashes.
-      const hasKey = !!process.env.NEXT_PUBLIC_CIRCLE_APP_KIT_KEY
+      if (!res.ok) {
+        throw new Error('StableFX execution API failed')
+      }
 
-      if (hasKey) {
-        await appKitSwap({
-          tokenIn: tokenIn,
-          tokenOut: tokenOut,
-          amountIn: amountIn
-        })
+      const trade = await res.json()
 
-        setGasSavings(prev => prev + 1.50)
-        updateModal({
-          type: 'success',
-          title: 'StableFX Swap Complete!',
-          description: `Successfully swapped ${amountIn} ${tokenIn} to ${amountOut} ${tokenOut} on Arc Testnet.`,
-          txStatus: 'success',
-        })
-        toast.success('FX Swap executed successfully!')
-      } else {
-        // High fidelity visual simulation of the swap
-        await new Promise(r => setTimeout(r, 2000))
-        updateModal({
-          title: 'Simulating Precompile Route',
-          description: 'Constructing atomic burn and mint pathway for Arc StableFX...',
-          txStatus: 'confirming'
-        })
-        await new Promise(r => setTimeout(r, 2000))
-        setGasSavings(prev => prev + 1.50)
-        updateModal({
-          type: 'success',
-          title: 'StableFX Swap Settled',
-          description: (
-            <div>
-              <p>Successfully settled <strong>{amountIn} {tokenIn}</strong> to <strong>{amountOut} {tokenOut}</strong> on Arc Testnet.</p>
-              <div className="callout" style={{ marginTop: '12px', border: '1px solid var(--border)', textAlign: 'left' }}>
-                <span className="text-xs text-muted font-semibold">SDK INTEGRATION SUMMARY</span>
-                <p className="text-xs mt-1 text-muted">This transaction utilized the <code>@circle-fin/app-kit</code> Swap precompile under the hood, routing through Arc's StableFX liquidity pool.</p>
+      // Track gas savings equivalent on Arc L1
+      setGasSavings(prev => prev + 1.50)
+
+      updateModal({
+        type: 'success',
+        title: 'StableFX Swap Complete!',
+        description: (
+          <div style={{ textAlign: 'left', display: 'flex', flexDirection: 'column', gap: '12px', fontSize: '13px', lineHeight: '1.6' }}>
+            <p>Successfully swapped <strong>{trade.sellAmount} {trade.sellCurrency}</strong> to <strong>{trade.buyAmount} {trade.buyCurrency}</strong> on Arc Testnet via StableFX.</p>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', background: 'var(--border)', padding: '10px', borderRadius: '4px' }}>
+              <div>
+                <span className="text-muted block text-xs">Quoted Rate</span>
+                <strong>{trade.quotedRate.toFixed(4)}</strong>
+              </div>
+              <div>
+                <span className="text-muted block text-xs">Executed Rate</span>
+                <strong>{trade.executedRate.toFixed(4)}</strong>
+              </div>
+              <div style={{ gridColumn: 'span 2' }}>
+                <span className="text-muted block text-xs">Slippage</span>
+                <strong style={{ color: trade.slippage < 0 ? 'var(--success)' : 'var(--error)' }}>
+                  {trade.slippage > 0 ? `+${trade.slippage.toFixed(4)}%` : `${trade.slippage.toFixed(4)}%`}
+                </strong>
               </div>
             </div>
-          ),
-          txStatus: 'success',
-          confirmText: 'Done',
-        })
-        toast.success('Simulated swap executed!')
-      }
+            {trade.txHash && (
+              <div className="callout" style={{ borderColor: 'var(--success)', background: 'rgba(76, 175, 80, 0.05)', margin: 0 }}>
+                <strong className="text-success font-semibold text-xs">Arc Tx Hash</strong>
+                <p className="text-mono text-xs mt-1" style={{ wordBreak: 'break-all' }}>{trade.txHash}</p>
+              </div>
+            )}
+          </div>
+        ),
+        confirmText: 'Done',
+      })
+
+      toast.success('FX Swap executed successfully!')
+      setAmountIn('')
+      setActiveQuote(null)
+      fetchTradeHistory()
     } catch (err: any) {
-      console.error('Swap error:', err)
+      console.error('Swap execution error:', err)
       updateModal({
         type: 'error',
-        title: 'FX Swap Failed',
+        title: 'StableFX Swap Failed',
         description: err?.message || 'Transaction was reverted by the EVM.',
         errorDetails: err?.stack || 'Error Code: StableFX_REVERTED_INSUFFICIENT_LIQUIDITY',
-        showRetry: true,
-        onRetry: handleExecuteSwap
       })
     } finally {
       setIsSwapping(false)
@@ -436,8 +525,8 @@ export default function TreasuryPage() {
                   <Info size={14} />
                 </button>
               </div>
-              <div className="stat-value" style={{ fontSize: '24px' }}>
-                €{FX_RATE.toFixed(2)}
+              <div className="stat-value" style={{ fontSize: '20px' }}>
+                {liveQuote ? `1 ${tokenIn} = ${liveQuote.rate.toFixed(4)} ${tokenOut}` : 'Fetching rate...'}
               </div>
               <div className="stat-label mt-2 text-muted">USDC ↔ EURC StableFX</div>
             </div>
@@ -667,14 +756,28 @@ export default function TreasuryPage() {
 
                   {/* Rate breakdown */}
                   <div className="callout" style={{ margin: '0 0 20px', padding: '12px' }}>
-                    <div className="flex justify-between text-xs text-muted w-100" style={{ width: '100%' }}>
-                      <span>Spot Price:</span>
-                      <span className="text-mono">1 USDC = €{FX_RATE.toFixed(2)} EURC</span>
+                    <div className="flex justify-between text-xs text-muted" style={{ width: '100%', display: 'flex', justifyContent: 'space-between' }}>
+                      <span>Live FX Rate:</span>
+                      <span className="text-mono font-semibold" style={{ color: 'var(--accent)' }}>
+                        {liveQuote ? `1 ${tokenIn} = ${liveQuote.rate.toFixed(4)} ${tokenOut}` : 'Loading...'}
+                      </span>
                     </div>
-                    <div className="flex justify-between text-xs text-muted w-100 mt-2" style={{ width: '100%' }}>
-                      <span>Slippage & Fees:</span>
-                      <span className="text-mono text-success">0.00% (Sponsored)</span>
-                    </div>
+                    {liveQuote && (
+                      <div className="flex justify-between text-xs text-muted mt-2" style={{ width: '100%', display: 'flex', justifyContent: 'space-between', fontSize: '11px' }}>
+                        <span>Bid/Ask Spread:</span>
+                        <span className="text-mono">
+                          Bid: {liveQuote.bidRate.toFixed(4)} | Ask: {liveQuote.askRate.toFixed(4)}
+                        </span>
+                      </div>
+                    )}
+                    {activeQuote && (
+                      <div className="flex justify-between text-xs text-muted mt-2" style={{ width: '100%', display: 'flex', justifyContent: 'space-between', borderTop: '1px solid var(--border)', paddingTop: '6px' }}>
+                        <span>Quote Status:</span>
+                        <span className={`text-mono ${quoteExpiryRemaining <= 5 ? 'text-warning' : 'text-success'}`}>
+                          {quoteExpiryRemaining > 0 ? `Valid for ${quoteExpiryRemaining}s` : 'Refreshing quote...'}
+                        </span>
+                      </div>
+                    )}
                   </div>
 
                   {/* Execute Button */}
@@ -682,10 +785,12 @@ export default function TreasuryPage() {
                     className="btn primary lg flex items-center justify-center gap-2"
                     style={{ width: '100%' }}
                     onClick={handleExecuteSwap}
-                    disabled={isSwapping}
+                    disabled={isSwapping || isQuoteLoading || !activeQuote || quoteExpiryRemaining <= 0}
                   >
                     {isSwapping ? (
                       <><Clock size={16} strokeWidth={1.5} /> Swapping...</>
+                    ) : isQuoteLoading ? (
+                      <><RefreshCw size={16} className="animate-spin" /> Fetching Quote...</>
                     ) : (
                       <><ArrowRight size={16} strokeWidth={1.5} /> Execute Spot Exchange</>
                     )}
@@ -793,6 +898,74 @@ export default function TreasuryPage() {
                   <span>Limit: $100.00 / day</span>
                 </div>
               </div>
+            </div>
+          </div>
+
+          {/* StableFX Swap History */}
+          <div className="card animate-slide-up" style={{ marginTop: '32px' }}>
+            <div className="card-header flex justify-between items-center" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontWeight: 600 }}>StableFX Transaction History</span>
+              <span className="badge purple">On-chain Settlement</span>
+            </div>
+            <div className="card-body" style={{ padding: 0 }}>
+              {tradeHistory.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '32px' }} className="text-muted text-sm">
+                  No currency swaps recorded for this wallet.
+                </div>
+              ) : (
+                <table className="database-table" style={{ margin: 0 }}>
+                  <thead>
+                    <tr>
+                      <th>Time</th>
+                      <th>Sold</th>
+                      <th>Bought</th>
+                      <th>Quoted Rate</th>
+                      <th>Executed Rate</th>
+                      <th>Slippage</th>
+                      <th>Transaction Hash</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {tradeHistory.map((trade) => (
+                      <tr key={trade.id}>
+                        <td className="text-xs text-muted">
+                          {new Date(trade.timestamp).toLocaleString()}
+                        </td>
+                        <td style={{ fontWeight: 600 }}>
+                          {trade.sellAmount.toFixed(2)} {trade.sellCurrency}
+                        </td>
+                        <td style={{ fontWeight: 600, color: 'var(--success)' }}>
+                          +{trade.buyAmount.toFixed(2)} {trade.buyCurrency}
+                        </td>
+                        <td className="text-mono text-xs">
+                          {trade.quotedRate.toFixed(4)}
+                        </td>
+                        <td className="text-mono text-xs" style={{ fontWeight: 600 }}>
+                          {trade.executedRate.toFixed(4)}
+                        </td>
+                        <td className="text-mono text-xs" style={{ color: trade.slippage < 0 ? 'var(--success)' : 'var(--error)' }}>
+                          {trade.slippage > 0 ? `+${trade.slippage.toFixed(4)}%` : `${trade.slippage.toFixed(4)}%`}
+                        </td>
+                        <td>
+                          {trade.txHash ? (
+                            <a 
+                              href={`https://explorer.testnet.arc.network/tx/${trade.txHash}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="explorer-link text-mono text-xs"
+                              style={{ color: 'var(--accent)' }}
+                            >
+                              {trade.txHash.slice(0, 10)}...{trade.txHash.slice(-8)}
+                            </a>
+                          ) : (
+                            <span className="text-muted text-xs">N/A</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
             </div>
           </div>
         </div>
