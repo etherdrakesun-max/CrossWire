@@ -28,6 +28,7 @@
     "react-dom": "^19.2.6",
     "react-hook-form": "^7.76.0",
     "react-hot-toast": "^2.6.0",
+    "react-is": "^19.2.7",
     "recharts": "^3.8.1",
     "viem": "^2.22.1",
     "wagmi": "^2.14.9",
