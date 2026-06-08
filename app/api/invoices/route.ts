@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
+import { sendPushNotification } from '@/lib/backend-notifications'
+
 
 export async function GET(req: NextRequest) {
   try {
@@ -113,7 +115,18 @@ export async function PUT(req: NextRequest) {
       include: { items: true }
     })
 
+    if (status === 'PAID') {
+      const payer = updated.payerAddr || 'A client'
+      await sendPushNotification(
+        updated.payeeAddr,
+        'Invoice Paid',
+        `Invoice #${updated.id} for ${updated.amount} USDC has been successfully settled by ${payer}.`,
+        `/invoices`
+      )
+    }
+
     return NextResponse.json(updated)
+
   } catch (err: any) {
     console.error('Failed to update invoice:', err)
     return NextResponse.json({ error: err.message }, { status: 500 })

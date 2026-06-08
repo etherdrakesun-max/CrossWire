@@ -7,9 +7,12 @@ import Sidebar from '../components/Sidebar'
 import Topbar from '../components/Topbar'
 import { USDC_ADDRESS, CROSSWIRE_CONTRACT_ADDRESS, getExplorerAddressUrl } from '@/lib/arc-config'
 import { erc20Abi, crossWireRouterAbi } from '@/lib/contracts'
-import { LayoutGrid, AlertTriangle, Code, History, Info } from 'lucide-react'
+import { LayoutGrid, AlertTriangle, Code, History, Info, Bell } from 'lucide-react'
 import { useModal } from '@/lib/modal-context'
 import { ResponsiveContainer, AreaChart, Area } from 'recharts'
+import { registerPushSubscription } from '@/lib/push-notifications'
+import toast from 'react-hot-toast'
+
 
 export default function DashboardPage() {
   const { address, isConnected } = useAccount()
@@ -79,9 +82,32 @@ export default function DashboardPage() {
             <LayoutGrid size={32} strokeWidth={1.5} className="text-primary" />
             Dashboard
           </h1>
-          <p className="text-muted text-sm" style={{ marginBottom: '32px' }}>
+          <p className="text-muted text-sm" style={{ marginBottom: '16px' }}>
             Real-time overview of CrossWire operations on Arc Testnet
           </p>
+
+          {isConnected && (
+            <div className="flex items-center gap-3" style={{ marginBottom: '32px' }}>
+              <button
+                onClick={async () => {
+                  if (address) {
+                    const ok = await registerPushSubscription(address)
+                    if (ok) {
+                      toast.success('Push notifications successfully enabled!')
+                    } else {
+                      toast.error('Failed to enable push notifications. Check settings.')
+                    }
+                  }
+                }}
+                className="btn primary flex items-center gap-2"
+                style={{ fontSize: '12px', padding: '6px 12px' }}
+              >
+                <Bell size={14} /> Enable Push Notifications
+              </button>
+              <span className="text-xs text-muted">Stay updated on settlements, multi-sig operations, and invoices on your mobile device.</span>
+            </div>
+          )}
+
 
           {/* Stats Grid */}
           <div className="stat-grid">

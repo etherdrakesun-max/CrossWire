@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { executeProgrammaticTransfer } from '@/lib/dev-wallet'
 import { calculateNextRunAt } from '@/lib/scheduler'
+import { sendPushNotification } from '@/lib/backend-notifications'
+
 
 export async function POST(req: NextRequest) {
   try {
@@ -109,6 +111,23 @@ export async function POST(req: NextRequest) {
         }
       })
 
+      // Send execution status push alert
+      if (success) {
+        await sendPushNotification(
+          schedule.ownerAddr,
+          'Scheduled Wire Executed',
+          `Your scheduled payment of ${schedule.amount} USDC to ${schedule.recipient.substring(0, 6)}... has been executed successfully.`,
+          '/schedules'
+        )
+      } else {
+        await sendPushNotification(
+          schedule.ownerAddr,
+          'Scheduled Wire Failed',
+          `Your scheduled payment of ${schedule.amount} USDC failed: ${errorMsg || 'Unknown error'}.`,
+          '/schedules'
+        )
+      }
+
       results.push({
         scheduleId: schedule.id,
         executionId: execution.id,
@@ -117,6 +136,7 @@ export async function POST(req: NextRequest) {
         error: errorMsg
       })
     }
+
 
     return NextResponse.json({
       processed: dueSchedules.length,

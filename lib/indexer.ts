@@ -2,6 +2,10 @@ import { createPublicClient, http } from 'viem'
 import { arcTestnet, CROSSWIRE_CONTRACT_ADDRESS } from './arc-config'
 import { prisma } from './db'
 import { crossWireRouterAbi } from './contracts'
+import { sendPushNotification } from './backend-notifications'
+import { formatUnits } from 'viem'
+import { USDC_DECIMALS } from './arc-config'
+
 
 const RPC_URL = process.env.NEXT_PUBLIC_ARC_RPC || 'https://rpc.testnet.arc.network'
 
@@ -145,7 +149,19 @@ export async function syncEvents() {
             data: JSON.stringify(args)
           }
         })
+
+        // Check if multi-sig approval is required
+        if (status === 'PENDING') {
+          const formattedAmount = parseFloat(formatUnits(BigInt(amount), USDC_DECIMALS)).toLocaleString('en-US', { minimumFractionDigits: 2 })
+          await sendPushNotification(
+            sender,
+            'Multi-Sig Approval Required',
+            `Wire #${wireId} of ${formattedAmount} USDC requires compliance team approval.`,
+            '/compliance'
+          )
+        }
       } 
+
       else if (eventName === 'WireExecuted') {
         const wireId = Number(args.wireId)
         const sender = args.sender.toLowerCase()
@@ -191,7 +207,22 @@ export async function syncEvents() {
             data: JSON.stringify(args)
           }
         })
+
+        const formattedAmount = parseFloat(formatUnits(BigInt(amount), USDC_DECIMALS)).toLocaleString('en-US', { minimumFractionDigits: 2 })
+        await sendPushNotification(
+          sender,
+          'Wire Settled Successfully',
+          `Your wire transfer #${wireId} for ${formattedAmount} USDC has reached finality on Arc.`,
+          '/dashboard'
+        )
+        await sendPushNotification(
+          recipient,
+          'Payment Received',
+          `You have received a wire transfer #${wireId} of ${formattedAmount} USDC on Arc.`,
+          '/dashboard'
+        )
       }
+
       else if (eventName === 'WireApproved') {
         const wireId = Number(args.wireId)
         const approver = args.approver.toLowerCase()
