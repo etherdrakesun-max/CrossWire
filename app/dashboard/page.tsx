@@ -9,6 +9,7 @@ import { USDC_ADDRESS, CROSSWIRE_CONTRACT_ADDRESS, getExplorerAddressUrl } from 
 import { erc20Abi, crossWireRouterAbi } from '@/lib/contracts'
 import { LayoutGrid, AlertTriangle, Code, History, Info } from 'lucide-react'
 import { useModal } from '@/lib/modal-context'
+import { ResponsiveContainer, AreaChart, Area } from 'recharts'
 
 export default function DashboardPage() {
   const { address, isConnected } = useAccount()
@@ -19,6 +20,17 @@ export default function DashboardPage() {
   const [wireCount, setWireCount] = useState<string>('0')
   const [totalVolume, setTotalVolume] = useState<string>('0.00')
   const [recentWires, setRecentWires] = useState<any[]>([])
+  const [miniChartData, setMiniChartData] = useState<any[]>([])
+
+  useEffect(() => {
+    fetch('/api/analytics/volume?range=7')
+      .then(res => res.json())
+      .then(res => {
+        if (res.data) setMiniChartData(res.data)
+      })
+      .catch(err => console.error('Error loading mini dashboard chart data:', err))
+  }, [address])
+
 
   // Fetch USDC balance
   useEffect(() => {
@@ -98,6 +110,24 @@ export default function DashboardPage() {
                 </button>
               </div>
               <div className="stat-value">${Number(balance).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+              
+              {/* Mini Trend Line */}
+              {miniChartData.length > 0 && (
+                <div style={{ height: '32px', width: '100%', marginTop: '8px' }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={miniChartData}>
+                      <Area 
+                        type="monotone" 
+                        dataKey="volume" 
+                        stroke="#3b82f6" 
+                        fill="rgba(59, 130, 246, 0.05)" 
+                        strokeWidth={1.5}
+                        dot={false}
+                      />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
               <div className="stat-label mt-2 text-muted">Arc Testnet</div>
             </div>
 
@@ -126,6 +156,24 @@ export default function DashboardPage() {
                 </button>
               </div>
               <div className="stat-value">{wireCount}</div>
+
+              {/* Mini Trend Line */}
+              {miniChartData.length > 0 && (
+                <div style={{ height: '32px', width: '100%', marginTop: '8px' }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={miniChartData}>
+                      <Area 
+                        type="monotone" 
+                        dataKey="wires" 
+                        stroke="#a855f7" 
+                        fill="rgba(168, 85, 247, 0.05)" 
+                        strokeWidth={1.5}
+                        dot={false}
+                      />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
               <div className="stat-label mt-2 text-muted">On-chain verified</div>
             </div>
 
@@ -154,6 +202,24 @@ export default function DashboardPage() {
                 </button>
               </div>
               <div className="stat-value">${Number(totalVolume).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+
+              {/* Mini Trend Line */}
+              {miniChartData.length > 0 && (
+                <div style={{ height: '32px', width: '100%', marginTop: '8px' }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={miniChartData}>
+                      <Area 
+                        type="monotone" 
+                        dataKey="volume" 
+                        stroke="#10b981" 
+                        fill="rgba(16, 185, 129, 0.05)" 
+                        strokeWidth={1.5}
+                        dot={false}
+                      />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
               <div className="stat-label mt-2 text-muted">USDC on Arc</div>
             </div>
 
@@ -182,9 +248,28 @@ export default function DashboardPage() {
                 </button>
               </div>
               <div className="stat-value">&lt;1s</div>
+
+              {/* Micro visual simulation line for finality */}
+              {miniChartData.length > 0 && (
+                <div style={{ height: '32px', width: '100%', marginTop: '8px' }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={miniChartData}>
+                      <Area 
+                        type="monotone" 
+                        dataKey="wires" 
+                        stroke="#f59e0b" 
+                        fill="rgba(245, 158, 11, 0.05)" 
+                        strokeWidth={1.5}
+                        dot={false}
+                      />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
               <div className="stat-label mt-2 text-muted">Deterministic</div>
             </div>
           </div>
+
 
           {/* Connection Status */}
           {!isConnected && (
