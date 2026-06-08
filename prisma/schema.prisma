@@ -222,6 +222,15 @@ model ComplianceCheck {
   checkedAt   DateTime @default(now())
 }
 
+model NotificationSubscription {
+  id         Int      @id @default(autoincrement())
+  walletAddr String   @unique
+  endpoint   String
+  keys       String   // JSON string of auth/p256dh keys
+  createdAt  DateTime @default(now())
+}
+
+
 
 
 
