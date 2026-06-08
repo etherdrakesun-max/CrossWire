@@ -1384,98 +1384,120 @@ p, .text-body { margin-top: 2px; margin-bottom: 8px; }
 }
 
 /* --- Mobile Viewport Restructuring (<768px) --- */
+.mobile-nav-container {
+  display: none;
+}
+
 @media (max-width: 768px) {
-  /* Restructure main layout to vertical flow */
+  /* Bottom navigation bar visible on mobile */
+  .mobile-nav-container {
+    display: flex;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: 64px;
+    background: #040815;
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+    justify-content: space-around;
+    align-items: center;
+    z-index: 1000;
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  .mobile-nav-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-secondary);
+    text-decoration: none;
+    font-size: 10px;
+    gap: 4px;
+    flex: 1;
+    height: 100%;
+    transition: color 0.15s ease;
+  }
+
+  .mobile-nav-item.active {
+    color: var(--accent);
+  }
+
+  /* Hide sidebar on mobile unless toggled open */
+  .sidebar {
+    display: none !important;
+  }
+  
+  .sidebar.open {
+    display: flex !important;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 260px !important;
+    height: 100vh !important;
+    z-index: 2000;
+    background: #020617 !important;
+    box-shadow: 4px 0 24px rgba(0, 0, 0, 0.5);
+    border-right: 1px solid var(--border) !important;
+  }
+
+  /* Overlay behind sidebar when open */
+  .sidebar-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(0, 0, 0, 0.6);
+    z-index: 1500;
+    display: block;
+  }
+
+  /* layout and pad adjustments */
   .layout-wrapper {
     flex-direction: column !important;
     height: auto !important;
-    overflow: visible !important;
   }
 
-  /* Transform Sidebar into an elegant top navigation shelf */
-  .sidebar {
+  .main-content {
+    margin-left: 0 !important;
     width: 100% !important;
-    min-width: 100% !important;
-    height: auto !important;
-    border-right: none !important;
-    border-bottom: 1px solid var(--border) !important;
-    padding: 16px 0 !important;
+    padding-bottom: 80px !important; /* spacing for bottom nav */
   }
 
-  .sidebar-logo {
-    margin-bottom: 16px !important;
-    justify-content: center !important;
+  .page-container {
+    padding: 16px 16px 80px !important;
   }
 
-  .sidebar-divider {
-    margin: 8px 24px !important;
-  }
-
-  /* Arrange sidebar links horizontally into wrapping buttons */
-  .sidebar-group {
-    display: flex !important;
-    flex-direction: row !important;
-    flex-wrap: wrap !important;
-    justify-content: center !important;
-    gap: 8px !important;
-    padding: 0 16px !important;
-    margin-bottom: 12px !important;
-  }
-
-  .sidebar-header {
-    width: 100% !important;
-    text-align: center !important;
-    margin-bottom: 4px !important;
-    padding: 0 !important;
-  }
-
-  .sidebar-item {
-    font-size: 12px !important;
-    padding: 6px 12px !important;
-    background: var(--bg-secondary) !important;
-    border: 1px solid var(--border) !important;
-    border-radius: 2px !important;
-  }
-
-  .sidebar-item-icon {
-    display: none !important; /* Save space on mobile top shelf */
-  }
-
-  /* Topbar Adjustments */
-  .topbar {
-    padding: 0 16px !important;
-    position: static !important; /* Allow natural flow */
-    height: auto !important;
-    min-height: auto !important;
-    padding-top: 12px !important;
-    padding-bottom: 12px !important;
-    flex-direction: column !important;
+  .stat-grid {
+    grid-template-columns: 1fr 1fr !important;
     gap: 12px !important;
   }
 
-  /* Page Padding Optimization */
-  .page-container {
-    padding: 24px 16px 48px !important;
-  }
-
-  /* Convert grids into single-column layouts dynamically */
-  .page-grid-two-col, 
-  .grid-two-equal, 
-  .stat-grid {
-    grid-template-columns: 1fr !important;
-    gap: 20px !important;
-  }
-
-  /* Table Autonomic Horizontal Scroll Mechanics */
   .database-table {
     display: block !important;
     width: 100% !important;
     overflow-x: auto !important;
-    -webkit-overflow-scrolling: touch !important;
     white-space: nowrap !important;
-    border: 1px solid var(--border) !important;
-    border-radius: 2px !important;
   }
+
+  .mobile-hamburger {
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .desktop-close-btn {
+    display: block !important;
+  }
+}
+
+.mobile-hamburger {
+  display: none;
+}
+
+.desktop-close-btn {
+  display: none;
 }
 
 

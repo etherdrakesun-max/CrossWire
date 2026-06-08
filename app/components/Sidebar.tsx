@@ -2,11 +2,12 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useAccount, useDisconnect } from 'wagmi'
 import { ConnectButton } from '@rainbow-me/rainbowkit'
 import AuthModal from './AuthModal'
-import { LayoutGrid, Send, ArrowRightLeft, Rows, History, ShieldCheck, Blocks, Coins, BookOpen, Calendar, FileText, Bot, Briefcase, TrendingUp } from 'lucide-react'
+import { LayoutGrid, Send, ArrowRightLeft, Rows, History, ShieldCheck, Blocks, Coins, BookOpen, Calendar, FileText, Bot, Briefcase, TrendingUp, X } from 'lucide-react'
+
 
 interface NavItem {
   href: string
@@ -47,22 +48,53 @@ const NAV_ITEMS: NavGroup[] = [
   ]},
 ]
 
-
-
-
 export default function Sidebar() {
   const pathname = usePathname()
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false)
   const { connector } = useAccount()
   const { disconnect } = useDisconnect()
+  const [isOpen, setIsOpen] = useState(false)
+
+  useEffect(() => {
+    const handleToggle = () => setIsOpen(prev => !prev)
+    const handleClose = () => setIsOpen(false)
+    window.addEventListener('crosswire-toggle-sidebar', handleToggle)
+    window.addEventListener('crosswire-close-sidebar', handleClose)
+    return () => {
+      window.removeEventListener('crosswire-toggle-sidebar', handleToggle)
+      window.removeEventListener('crosswire-close-sidebar', handleClose)
+    }
+  }, [])
+
+  // Auto-close sidebar on page change
+  useEffect(() => {
+    setIsOpen(false)
+  }, [pathname])
 
   return (
-    <div className="sidebar">
-      {/* Logo */}
-      <div className="sidebar-logo">
-        <div className="sidebar-logo-icon"></div>
-        <span className="sidebar-logo-text">CrossWire</span>
-      </div>
+    <>
+      {isOpen && (
+        <div 
+          className="sidebar-overlay" 
+          onClick={() => window.dispatchEvent(new CustomEvent('crosswire-close-sidebar'))} 
+        />
+      )}
+      <div className={`sidebar ${isOpen ? 'open' : ''}`}>
+        {/* Logo */}
+        <div className="sidebar-logo flex items-center justify-between" style={{ width: '100%' }}>
+          <div className="flex items-center">
+            <div className="sidebar-logo-icon"></div>
+            <span className="sidebar-logo-text">CrossWire</span>
+          </div>
+          <button 
+            onClick={() => window.dispatchEvent(new CustomEvent('crosswire-close-sidebar'))} 
+            className="btn ghost desktop-close-btn"
+            style={{ padding: '4px', minHeight: 'auto' }}
+          >
+            <X size={16} />
+          </button>
+        </div>
+
 
       <div className="sidebar-divider" />
 
@@ -154,6 +186,7 @@ export default function Sidebar() {
           if (btn) btn.click()
         }}
       />
-    </div>
+      </div>
+    </>
   )
 }
