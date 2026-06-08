@@ -477,6 +477,44 @@ export default function SendPage() {
 
     const amountParsed = parseUnits(amount, USDC_DECIMALS)
 
+    // Pre-flight compliance verification
+    showModal({
+      type: 'loading',
+      title: 'Running Compliance Pre-Flight',
+      description: 'Screening transaction against global sanctions lists & verifying limits...'
+    })
+
+    try {
+      const screenRes = await fetch('/api/compliance/screen', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          walletAddr: address,
+          amount: amountNum,
+          recipient
+        })
+      })
+
+      if (!screenRes.ok) {
+        throw new Error('Compliance screening unreachable')
+      }
+
+      const screenData = await screenRes.json()
+      if (!screenData.allowed) {
+        showModal({
+          type: 'error',
+          title: 'Compliance Transfer Blocked',
+          description: screenData.reason || 'Blocked due to regulatory restrictions.',
+          errorDetails: `Risk Profile Rating: ${screenData.riskScore || 100} / 100`
+        })
+        return
+      }
+    } catch (e: any) {
+      console.error(e)
+      toast.error('Compliance validation failure. Transfer canceled.')
+      return
+    }
+
     if (amountNum >= 10000) {
       showModal({
         type: 'warning',
@@ -490,6 +528,7 @@ export default function SendPage() {
       await proceedExecution(amountParsed)
     }
   }
+
   const resetForm = () => {
     setStep('form')
     setRecipient('')

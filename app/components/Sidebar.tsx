@@ -39,7 +39,7 @@ const NAV_ITEMS: NavGroup[] = [
 
   { group: 'Analytics', items: [
     { href: '/history', icon: History, label: 'Transaction Log' },
-    { href: '/compliance', icon: ShieldCheck, label: 'Compliance' },
+    { href: '/compliance', icon: ShieldCheck, label: 'Compliance Center' },
   ]},
   { group: 'Circle Stack', items: [
     { href: '/integrations', icon: Blocks, label: 'Integrations', badge: '7' },
