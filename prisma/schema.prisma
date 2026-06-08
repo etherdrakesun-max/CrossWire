@@ -199,6 +199,30 @@ model Job {
   updatedAt   DateTime @updatedAt
 }
 
+model KycProfile {
+  id          Int      @id @default(autoincrement())
+  walletAddr  String   @unique
+  tier        String   @default("UNVERIFIED")
+  fullName    String?
+  country     String?
+  documentId  String?
+  verifiedAt  DateTime?
+  expiresAt   DateTime?
+  status      String   @default("PENDING")
+  createdAt   DateTime @default(now())
+}
+
+model ComplianceCheck {
+  id          Int      @id @default(autoincrement())
+  wireId      Int?
+  walletAddr  String
+  checkType   String   // SANCTIONS, PEP, ADVERSE_MEDIA
+  result      String   // PASS, FAIL, REVIEW
+  details     String   @default("{}")
+  checkedAt   DateTime @default(now())
+}
+
+
 
 
 
