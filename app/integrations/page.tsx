@@ -11,6 +11,35 @@ import { useModal } from '@/lib/modal-context'
 
 const INTEGRATIONS = [
   {
+    category: 'AI Agent Mesh',
+    items: [
+      {
+        icon: <Scale size={24} strokeWidth={1.25} />,
+        name: 'CrossWireAgent Smart Contract',
+        status: 'active',
+        desc: 'ERC-8004 Agent Trust Identity Registry and ERC-8183 Job Escrow contract using USDC on Arc.',
+        docs: 'https://testnet.arcscan.app',
+        usage: 'Used in: AI Identity Registry, Escrow Deposit & Job Settle',
+      },
+      {
+        icon: <Blocks size={24} strokeWidth={1.25} />,
+        name: 'Autonomous FOSS Sidecar Webhooks',
+        status: 'active',
+        desc: 'Webhooks for Navidrome music scrobbling, Owncast streaming, and RSSHub citation feeds that auto-trigger splits.',
+        docs: 'https://github.com/etherdrakesun/track-1-CrossWire',
+        usage: 'Endpoints: /api/webhooks/owncast, /api/webhooks/navidrome',
+      },
+      {
+        icon: <ShieldCheck size={24} strokeWidth={1.25} />,
+        name: 'x402 Micropayment Gated APIs',
+        status: 'active',
+        desc: 'HTTP 402 paywall routes that restrict premium quotation and citation indexes unless signed EIP-712 auth is supplied.',
+        docs: 'https://github.com/etherdrakesun/track-1-CrossWire',
+        usage: 'Endpoints: /api/premium/quote, /api/premium/citation',
+      },
+    ],
+  },
+  {
     category: 'Core Settlement',
     items: [
       {
@@ -318,17 +347,17 @@ export default function IntegrationsPage() {
 
               <pre style={{ fontSize: '12px', lineHeight: 1.6, fontFamily: 'monospace', whiteSpace: 'pre-wrap', color: 'var(--text-primary)' }}>
 {`┌──────────────────────────────────────────────────────────────┐
-│                     CrossWire Frontend                       │
-│  Next.js 14 App Router  │  RainbowKit  │  Institutional UI  │
+│                    CrossWire Agent Mesh                      │
+│ Next.js 16 App Router  │  RainbowKit  │  FOSS Creator Webhooks│
 ├──────────────┬───────────┴──────────────┴──────────────┬──────┤
-│  App Kit SDK │  Send │ Bridge │ Swap │ Unified Balance │      │
+│ App Kit / FX │ EIP-712 Signatures  │  x402 Micropayments │      │
 ├──────────────┴────────────────────────────────────────┤      │
-│              CrossWireRouter.sol (Arc Testnet)         │ viem │
-│  initiateWire │ batchWires │ multiSig │ compliance     │      │
+│  CrossWireAgent (ERC-8004 Registry + ERC-8183 Escrow)  │ viem │
+│  CrossWireRouterV2.sol (Gasless Payouts Relayer)      │      │
 ├───────────────────────────────────────────────────────┤      │
-│           USDC (ERC-20, 6 dec) + CCTP v2              │      │
+│     USDC (ERC-20, 6 decimals) & EURC Gasless Rails    │      │
 ├───────────────────────────────────────────────────────┤      │
-│              Arc Testnet (Chain ID: 5042002)           │      │
+│            Arc Testnet (Chain ID: 5042002)            │      │
 └───────────────────────────────────────────────────────┴──────┘`}
               </pre>
             </div>

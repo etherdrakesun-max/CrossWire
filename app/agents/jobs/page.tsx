@@ -5,8 +5,8 @@ import { useAccount, useWalletClient, usePublicClient } from 'wagmi'
 import toast from 'react-hot-toast'
 import Sidebar from '../../components/Sidebar'
 import Topbar from '../../components/Topbar'
-import { erc20Abi } from '@/lib/contracts'
-import { USDC_ADDRESS, CROSSWIRE_CONTRACT_ADDRESS, getExplorerTxUrl } from '@/lib/arc-config'
+import { erc20Abi, crossWireAgentAbi } from '@/lib/contracts'
+import { USDC_ADDRESS, CROSSWIRE_CONTRACT_ADDRESS, CROSSWIRE_AGENT_CONTRACT_ADDRESS, getExplorerTxUrl } from '@/lib/arc-config'
 import { parseUnits, keccak256, encodePacked } from 'viem'
 import { 
   Briefcase, 
@@ -89,39 +89,51 @@ export default function JobsBoardPage() {
     const amountParsed = parseUnits(amount, 6)
 
     try {
-      let txHash = '0x' + Math.random().toString(36).substring(2, 18) + Math.random().toString(36).substring(2, 18)
+      let txHash = ''
 
-      // If wallet is connected, simulate client escrow deposit approval
       if (walletClient && publicClient) {
-        try {
-          // Check allowance first
-          const currentAllowance = await publicClient.readContract({
+        // Check allowance first for CrossWireAgent contract
+        const currentAllowance = await publicClient.readContract({
+          address: USDC_ADDRESS,
+          abi: erc20Abi,
+          functionName: 'allowance',
+          args: [address, CROSSWIRE_AGENT_CONTRACT_ADDRESS],
+        }) as bigint
+
+        if (currentAllowance < amountParsed) {
+          toast.loading('Approving USDC Escrow Deposit...', { id: 'escrow-toast' })
+          const approveHash = await walletClient.writeContract({
             address: USDC_ADDRESS,
             abi: erc20Abi,
-            functionName: 'allowance',
-            args: [address, CROSSWIRE_CONTRACT_ADDRESS],
-          }) as bigint
-
-          if (currentAllowance < amountParsed) {
-            toast.loading('Approving USDC Escrow Deposit...', { id: 'escrow-toast' })
-            const approveHash = await walletClient.writeContract({
-              address: USDC_ADDRESS,
-              abi: erc20Abi,
-              functionName: 'approve',
-              args: [CROSSWIRE_CONTRACT_ADDRESS, amountParsed],
-              chain: null,
-              account: address,
-            })
-            await publicClient.waitForTransactionReceipt({ hash: approveHash })
-          }
-          
-          toast.loading('Locking escrow funds on Arc...', { id: 'escrow-toast' })
-          // Simulate job contract lockup success
-          await new Promise(r => setTimeout(r, 800))
-          toast.success('Funds successfully locked in ERC-8183 escrow!', { id: 'escrow-toast' })
-        } catch (contractErr: any) {
-          console.warn('Contract call bypassed, using simulated signature:', contractErr)
+            functionName: 'approve',
+            args: [CROSSWIRE_AGENT_CONTRACT_ADDRESS, amountParsed],
+            chain: null,
+            account: address,
+          })
+          await publicClient.waitForTransactionReceipt({ hash: approveHash })
         }
+        
+        toast.loading('Locking escrow funds on Arc...', { id: 'escrow-toast' })
+        const jobHash = keccak256(
+          encodePacked(
+            ['string', 'uint256'],
+            [title, BigInt(Date.now())]
+          )
+        )
+        const createJobTx = await walletClient.writeContract({
+          address: CROSSWIRE_AGENT_CONTRACT_ADDRESS,
+          abi: crossWireAgentAbi,
+          functionName: 'createJob',
+          args: [jobHash, selectedAgent as `0x${string}`, amountParsed],
+          chain: null,
+          account: address,
+        })
+        const receipt = await publicClient.waitForTransactionReceipt({ hash: createJobTx })
+        txHash = receipt.transactionHash
+        toast.success('Funds successfully locked in ERC-8183 escrow on-chain!', { id: 'escrow-toast' })
+      } else {
+        toast.error('Wallet or publicClient not ready.')
+        return
       }
 
       const res = await fetch('/api/agents/jobs', {
@@ -147,9 +159,9 @@ export default function JobsBoardPage() {
         const errData = await res.json()
         toast.error(errData.error || 'Failed to create job')
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error(err)
-      toast.error('Error occurred during job deployment')
+      toast.error(`Error occurred during job deployment: ${err.message || err}`, { id: 'escrow-toast' })
     } finally {
       setCreating(false)
     }
@@ -163,13 +175,41 @@ export default function JobsBoardPage() {
     }
 
     try {
+      let txHash = ''
+      const targetJob = jobs.find(j => j.id === jobId)
+
+      if (walletClient && publicClient && targetJob) {
+        const jobHash = keccak256(
+          encodePacked(
+            ['string', 'uint256'],
+            [targetJob.title, BigInt(new Date(targetJob.createdAt).getTime())]
+          )
+        )
+        toast.loading('Submitting proof on-chain...', { id: 'proof-toast' })
+        const proofTx = await walletClient.writeContract({
+          address: CROSSWIRE_AGENT_CONTRACT_ADDRESS,
+          abi: crossWireAgentAbi,
+          functionName: 'submitProof',
+          args: [jobHash, proofUri],
+          chain: null,
+          account: address,
+        })
+        const receipt = await publicClient.waitForTransactionReceipt({ hash: proofTx })
+        txHash = receipt.transactionHash
+        toast.success('Proof successfully recorded on Arc!', { id: 'proof-toast' })
+      } else {
+        toast.error('Wallet connected is required to sign deliverables proof on-chain', { id: 'proof-toast' })
+        return
+      }
+
       const res = await fetch('/api/agents/jobs', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           id: jobId,
           status: 'SUBMITTED',
-          proofOfWork: proofUri
+          proofOfWork: proofUri,
+          txHash: txHash || undefined
         })
       })
 
@@ -181,9 +221,9 @@ export default function JobsBoardPage() {
       } else {
         toast.error('Failed to submit proof')
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error(err)
-      toast.error('Error submitting proof')
+      toast.error(`Error submitting proof: ${err.message || err}`, { id: 'proof-toast' })
     }
   }
 
@@ -191,7 +231,29 @@ export default function JobsBoardPage() {
   const handleRelease = async (job: any) => {
     try {
       toast.loading('Initiating wire transfer to Agent...', { id: 'release-toast' })
-      let txHash = '0x' + Math.random().toString(36).substring(2, 18) + Math.random().toString(36).substring(2, 18)
+      let txHash = ''
+
+      if (walletClient && publicClient) {
+        const jobHash = keccak256(
+          encodePacked(
+            ['string', 'uint256'],
+            [job.title, BigInt(new Date(job.createdAt).getTime())]
+          )
+        )
+        const releaseTx = await walletClient.writeContract({
+          address: CROSSWIRE_AGENT_CONTRACT_ADDRESS,
+          abi: crossWireAgentAbi,
+          functionName: 'releaseEscrow',
+          args: [jobHash],
+          chain: null,
+          account: address,
+        })
+        const receipt = await publicClient.waitForTransactionReceipt({ hash: releaseTx })
+        txHash = receipt.transactionHash
+      } else {
+        toast.error('Wallet connected is required to release escrow on-chain', { id: 'release-toast' })
+        return
+      }
 
       // Call API to execute settlement
       const res = await fetch('/api/agents/jobs', {
@@ -210,21 +272,49 @@ export default function JobsBoardPage() {
       } else {
         toast.error('Failed to release escrow', { id: 'release-toast' })
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error(err)
-      toast.error('Error executing escrow release', { id: 'release-toast' })
+      toast.error(`Error executing escrow release: ${err.message || err}`, { id: 'release-toast' })
     }
   }
 
   // Dispute Escrow Job
   const handleDispute = async (jobId: number) => {
     try {
+      let txHash = ''
+      const targetJob = jobs.find(j => j.id === jobId)
+
+      if (walletClient && publicClient && targetJob) {
+        const jobHash = keccak256(
+          encodePacked(
+            ['string', 'uint256'],
+            [targetJob.title, BigInt(new Date(targetJob.createdAt).getTime())]
+          )
+        )
+        toast.loading('Filing dispute on-chain...', { id: 'dispute-toast' })
+        const disputeTx = await walletClient.writeContract({
+          address: CROSSWIRE_AGENT_CONTRACT_ADDRESS,
+          abi: crossWireAgentAbi,
+          functionName: 'disputeJob',
+          args: [jobHash],
+          chain: null,
+          account: address,
+        })
+        const receipt = await publicClient.waitForTransactionReceipt({ hash: disputeTx })
+        txHash = receipt.transactionHash
+        toast.success('Dispute registered on-chain!', { id: 'dispute-toast' })
+      } else {
+        toast.error('Wallet connected is required to dispute on-chain', { id: 'dispute-toast' })
+        return
+      }
+
       const res = await fetch('/api/agents/jobs', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           id: jobId,
-          status: 'DISPUTED'
+          status: 'DISPUTED',
+          txHash: txHash || undefined
         })
       })
 
@@ -234,9 +324,9 @@ export default function JobsBoardPage() {
       } else {
         toast.error('Failed to dispute job')
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error(err)
-      toast.error('Error occurred filing dispute')
+      toast.error(`Error occurred filing dispute: ${err.message || err}`, { id: 'dispute-toast' })
     }
   }
 
