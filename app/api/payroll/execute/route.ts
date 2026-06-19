@@ -22,21 +22,7 @@ export async function POST(req: NextRequest) {
 
     const apiKey = process.env.CIRCLE_API_KEY
     if (!apiKey) {
-      // Return a high-fidelity mock implementation if API keys are not configured,
-      // ensuring the platform is fully executable and educational for the hackathon judges.
-      console.log('CIRCLE_API_KEY not configured. Running high-fidelity simulation...')
-      await new Promise((r) => setTimeout(r, 2000))
-
-      return NextResponse.json({
-        success: true,
-        simulated: true,
-        walletId: 'd60f58a3-2d29-450f-a3df-7b4c2e6f7a8b',
-        destinationAddresses: recipients,
-        amounts: amounts,
-        transactionId: `tx_${Math.random().toString(36).substring(2, 15)}`,
-        status: 'CONFIRMED',
-        message: 'Corporate payroll successfully routed and sponsored on Arc Testnet via simulated precompile rails.'
-      })
+      return NextResponse.json({ error: 'CIRCLE_API_KEY environment variable is not configured.' }, { status: 500 })
     }
 
     // Retrieve the corporate payout wallet set
