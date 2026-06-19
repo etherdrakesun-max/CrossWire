@@ -28,12 +28,17 @@ export const arcTestnet = defineChain({
 export const USDC_ADDRESS = '0x3600000000000000000000000000000000000000' as const
 export const USDC_DECIMALS = 6
 
-// Contract address — update after deployment
 export const CROSSWIRE_CONTRACT_ADDRESS = (
   process.env.NEXT_PUBLIC_CROSSWIRE_CONTRACT_V2 ||
   process.env.NEXT_PUBLIC_CROSSWIRE_CONTRACT ||
   '0x0000000000000000000000000000000000000000'
 ) as `0x${string}`
+
+export const CROSSWIRE_AGENT_CONTRACT_ADDRESS = (
+  process.env.NEXT_PUBLIC_CROSSWIRE_AGENT_CONTRACT ||
+  '0x0000000000000000000000000000000000000000'
+) as `0x${string}`
+
 
 // Explorer helpers
 export const getExplorerTxUrl = (hash: string) =>

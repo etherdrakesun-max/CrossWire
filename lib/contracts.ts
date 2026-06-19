@@ -258,3 +258,89 @@ export const erc20Abi = [
     type: 'function',
   },
 ] as const
+
+export const crossWireAgentAbi = [
+  {
+    inputs: [
+      { name: '_name', type: 'string' },
+      { name: '_agentCardUri', type: 'string' },
+    ],
+    name: 'registerAgent',
+    outputs: [],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  {
+    inputs: [
+      { name: '_agent', type: 'address' },
+      { name: '_newScore', type: 'uint256' },
+    ],
+    name: 'updateAgentReputation',
+    outputs: [],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  {
+    inputs: [
+      { name: '_jobHash', type: 'bytes32' },
+      { name: '_agent', type: 'address' },
+      { name: '_amount', type: 'uint256' },
+    ],
+    name: 'createJob',
+    outputs: [],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  {
+    inputs: [
+      { name: '_jobHash', type: 'bytes32' },
+      { name: '_proofUri', type: 'string' },
+    ],
+    name: 'submitProof',
+    outputs: [],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  {
+    inputs: [{ name: '_jobHash', type: 'bytes32' }],
+    name: 'releaseEscrow',
+    outputs: [],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  {
+    inputs: [{ name: '_jobHash', type: 'bytes32' }],
+    name: 'disputeJob',
+    outputs: [],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  {
+    inputs: [{ name: '', type: 'address' }],
+    name: 'agents',
+    outputs: [
+      { name: 'name', type: 'string' },
+      { name: 'agentCardUri', type: 'string' },
+      { name: 'reputationScore', type: 'uint256' },
+      { name: 'active', type: 'bool' },
+    ],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [{ name: '', type: 'bytes32' }],
+    name: 'jobs',
+    outputs: [
+      { name: 'jobHash', type: 'bytes32' },
+      { name: 'client', type: 'address' },
+      { name: 'agent', type: 'address' },
+      { name: 'escrowAmount', type: 'uint256' },
+      { name: 'status', type: 'uint8' },
+      { name: 'proofUri', type: 'string' },
+      { name: 'exists', type: 'bool' },
+    ],
+    stateMutability: 'view',
+    type: 'function',
+  },
+] as const
+
