@@ -8,7 +8,7 @@
     {
       "contractAddress": "0x3600000000000000000000000000000000000000",
       "functionSignature": "approve(address,uint256)",
-      "comment": "Sponsor USDC allowance approvals for CrossWireRouter"
+      "comment": "Sponsor USDC allowance approvals for CrossWire contracts"
     },
     {
       "contractAddress": "0x89B50855Aa3bE2F677cD6303Cec089B5F319D72a",
@@ -16,14 +16,34 @@
       "comment": "Sponsor EURC allowance approvals for Spot FX Swaps"
     },
     {
-      "contractAddress": "0x4CEF52F7e9e623A8C66fB9F51eD494D99e5251a3",
+      "contractAddress": "0x6eb677774c1ff3722738f7519f34de3fe576a429",
       "functionSignature": "initiateWire(address,uint256,bytes32,uint8,string)",
       "comment": "Sponsor single expatriate SWIFT-compliant wire transfers"
     },
     {
-      "contractAddress": "0x4CEF52F7e9e623A8C66fB9F51eD494D99e5251a3",
+      "contractAddress": "0x6eb677774c1ff3722738f7519f34de3fe576a429",
       "functionSignature": "batchInitiateWires(address[],uint256[],bytes32[],uint8[])",
       "comment": "Sponsor mass programmatic B2B payouts executed in one transaction"
+    },
+    {
+      "contractAddress": "0x6d3ccea72e2960672e3fd9defd2b280ff2b1a1ef",
+      "functionSignature": "createJob(bytes32,address,uint256)",
+      "comment": "Sponsor job posting with locked USDC escrow"
+    },
+    {
+      "contractAddress": "0x6d3ccea72e2960672e3fd9defd2b280ff2b1a1ef",
+      "functionSignature": "submitProof(bytes32,string)",
+      "comment": "Sponsor agent deliverables proof submission"
+    },
+    {
+      "contractAddress": "0x6d3ccea72e2960672e3fd9defd2b280ff2b1a1ef",
+      "functionSignature": "releaseEscrow(bytes32)",
+      "comment": "Sponsor client escrow settlement release"
+    },
+    {
+      "contractAddress": "0x6d3ccea72e2960672e3fd9defd2b280ff2b1a1ef",
+      "functionSignature": "disputeJob(bytes32)",
+      "comment": "Sponsor client dispute filing"
     }
   ]
 }

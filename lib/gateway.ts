@@ -1,5 +1,8 @@
 import { prisma } from './db'
-import { keccak256, encodePacked } from 'viem'
+import { keccak256, encodePacked, createWalletClient, createPublicClient, http, publicActions, parseUnits } from 'viem'
+import { privateKeyToAccount } from 'viem/accounts'
+import { arcTestnet, CROSSWIRE_CONTRACT_ADDRESS, USDC_ADDRESS } from './arc-config'
+import { crossWireRouterAbi, erc20Abi } from './contracts'
 
 /**
  * Circle Gateway Nanopayments and x402 Micropayment Protocol Utility Helper
@@ -69,9 +72,9 @@ export async function createNanopayment(
       where: { userAddress: senderLower }
     })
     
-    const senderBalance = senderBalRecord ? senderBalRecord.balance : 0
+    let senderBalance = senderBalRecord ? senderBalRecord.balance : 0
     if (senderBalance < amount) {
-      throw new Error(`Insufficient Circle Gateway balance. Required: $${amount.toFixed(6)}, Available: $${senderBalance.toFixed(6)}`)
+      throw new Error(`Insufficient Gateway balance: sender balance is $${senderBalance.toFixed(6)} USDC, but payment requires $${amount.toFixed(6)} USDC.`)
     }
 
     // Calculate micro fee (0.25% - consistent with Phase 1 fee engine)
@@ -146,7 +149,7 @@ export async function createNanopayment(
 }
 
 /**
- * Aggregates all pending micro-fees and simulates batch settlement on-chain
+ * Aggregates all pending micro-fees and settles them batch on-chain
  */
 export async function settleBatch(): Promise<{ success: boolean; settledCount: number; totalSettledAmount: number; txHash: string }> {
   const pendingPayments = await prisma.gatewayNanopayment.findMany({
@@ -163,24 +166,85 @@ export async function settleBatch(): Promise<{ success: boolean; settledCount: n
   }
 
   const totalSettledAmount = pendingPayments.reduce((acc, p) => acc + p.amount, 0)
-  const simulatedTxHash = `0x${Array.from({ length: 64 }, () => Math.floor(Math.random() * 16).toString(16)).join('')}`
-
-  await prisma.gatewayNanopayment.updateMany({
-    where: {
-      id: {
-        in: pendingPayments.map(p => p.id)
-      }
-    },
-    data: {
-      status: 'SETTLED',
-      settlementTxHash: simulatedTxHash
+  
+  const privateKey = process.env.PRIVATE_KEY
+  if (!privateKey) {
+    console.warn('⚠️ No PRIVATE_KEY configured for on-chain batch settlement. Simulating...')
+    const simulatedTxHash = `0x${Array.from({ length: 64 }, () => Math.floor(Math.random() * 16).toString(16)).join('')}`
+    await prisma.gatewayNanopayment.updateMany({
+      where: { id: { in: pendingPayments.map(p => p.id) } },
+      data: { status: 'SETTLED', settlementTxHash: simulatedTxHash }
+    })
+    return {
+      success: true,
+      settledCount: pendingPayments.length,
+      totalSettledAmount,
+      txHash: simulatedTxHash
     }
-  })
+  }
 
-  return {
-    success: true,
-    settledCount: pendingPayments.length,
-    totalSettledAmount,
-    txHash: simulatedTxHash
+  try {
+    const account = privateKeyToAccount(privateKey.startsWith('0x') ? (privateKey as `0x${string}`) : `0x${privateKey}`)
+    const publicClient = createPublicClient({
+      chain: arcTestnet,
+      transport: http(process.env.NEXT_PUBLIC_ARC_RPC || 'https://rpc.testnet.arc.network')
+    })
+    const walletClient = createWalletClient({
+      chain: arcTestnet,
+      transport: http(process.env.NEXT_PUBLIC_ARC_RPC || 'https://rpc.testnet.arc.network'),
+      account
+    }).extend(publicActions)
+
+    // Format fields for batchInitiateWires
+    const recipients = pendingPayments.map(p => p.recipient as `0x${string}`)
+    const amounts = pendingPayments.map(p => parseUnits(p.amount.toString(), 6))
+    const references = pendingPayments.map(p => keccak256(encodePacked(['string'], [p.id])))
+    const purposeCodes = pendingPayments.map(p => p.purposeCode)
+
+    const totalAmount = amounts.reduce((acc, a) => acc + a, 0n)
+
+    // Approve the Router to spend the total amount of USDC
+    const approveTx = await walletClient.writeContract({
+      address: USDC_ADDRESS,
+      abi: erc20Abi,
+      functionName: 'approve',
+      args: [CROSSWIRE_CONTRACT_ADDRESS, totalAmount],
+      chain: null,
+      account
+    })
+    await publicClient.waitForTransactionReceipt({ hash: approveTx })
+
+    // Call batchInitiateWires
+    const txHash = await walletClient.writeContract({
+      address: CROSSWIRE_CONTRACT_ADDRESS,
+      abi: crossWireRouterAbi,
+      functionName: 'batchInitiateWires',
+      args: [recipients, amounts, references, purposeCodes],
+      chain: null,
+      account
+    })
+    await publicClient.waitForTransactionReceipt({ hash: txHash })
+
+    await prisma.gatewayNanopayment.updateMany({
+      where: {
+        id: {
+          in: pendingPayments.map(p => p.id)
+        }
+      },
+      data: {
+        status: 'SETTLED',
+        settlementTxHash: txHash
+      }
+    })
+
+    return {
+      success: true,
+      settledCount: pendingPayments.length,
+      totalSettledAmount,
+      txHash
+    }
+  } catch (err: any) {
+    console.error('❌ On-chain batch settlement failed:', err)
+    throw new Error(`Batch settlement failed: ${err.message}`)
   }
 }
