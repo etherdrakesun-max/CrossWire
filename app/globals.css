@@ -1249,7 +1249,7 @@ p, .text-body { margin-top: 2px; margin-bottom: 8px; }
 }
 
 /* ============================================
-   MODAL COMPONENT SYSTEM
+   MODAL COMPONENT SYSTEM (PREMIUM HARDENED)
    ============================================ */
 .modal-overlay {
   position: fixed;
@@ -1257,16 +1257,16 @@ p, .text-body { margin-top: 2px; margin-bottom: 8px; }
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.6);
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 100;
+  z-index: 10000;
   opacity: 0;
   pointer-events: none;
-  transition: opacity 0.2s ease-out;
+  transition: opacity 0.25s cubic-bezier(0.16, 1, 0.3, 1);
   padding: 24px;
 }
 
@@ -1280,16 +1280,16 @@ p, .text-body { margin-top: 2px; margin-bottom: 8px; }
   border: 1px solid var(--border);
   border-radius: 4px;
   width: 100%;
-  max-width: 440px;
+  max-width: 460px;
   padding: 32px;
   box-shadow: 0 30px 60px -15px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(255, 255, 255, 0.05) inset;
-  transform: scale(0.95);
-  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  transform: scale(0.96) translateY(5px);
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
   text-align: center;
 }
 
 .modal-content.open {
-  transform: scale(1);
+  transform: scale(1) translateY(0);
 }
 
 .modal-icon-container {
@@ -1326,6 +1326,7 @@ p, .text-body { margin-top: 2px; margin-bottom: 8px; }
   margin-bottom: 24px;
   white-space: pre-wrap;
   color: var(--danger);
+  font-family: var(--font-mono);
 }
 
 .modal-tx-details {
@@ -1347,6 +1348,8 @@ p, .text-body { margin-top: 2px; margin-bottom: 8px; }
 .spinner-ring {
   position: relative;
   display: inline-block;
+  width: 48px;
+  height: 48px;
 }
 
 .spinner-ring-inner {
