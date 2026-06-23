@@ -39,7 +39,7 @@ export default function Header() {
 
         <div className="marketing-header-actions">
           <ConnectButton.Custom>
-            {({ account, chain, openAccountModal, mounted }) => {
+            {({ account, chain, openAccountModal, openConnectModal, mounted }) => {
               const ready = mounted
               const connected = ready && account && chain
 
@@ -70,6 +70,12 @@ export default function Header() {
                       {connector?.id === 'circleModularWallet' ? `Passkey: ${account.displayName}` : account.displayName}
                     </button>
                   )}
+
+                  <AuthModal 
+                    isOpen={isAuthModalOpen} 
+                    onClose={() => setIsAuthModalOpen(false)} 
+                    openRainbowKit={openConnectModal}
+                  />
                 </div>
               )
             }}
@@ -80,15 +86,6 @@ export default function Header() {
           </Link>
         </div>
       </div>
-
-      <AuthModal 
-        isOpen={isAuthModalOpen} 
-        onClose={() => setIsAuthModalOpen(false)} 
-        openRainbowKit={() => {
-          const btn = document.querySelector('[aria-label="Connect Wallet"]') as HTMLButtonElement
-          if (btn) btn.click()
-        }}
-      />
     </header>
   )
 }
