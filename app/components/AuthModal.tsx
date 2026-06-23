@@ -72,8 +72,8 @@ export default function AuthModal({ isOpen, onClose, openRainbowKit }: AuthModal
   }
 
   return (
-    <div className="modal-overlay" style={{ display: 'flex', zIndex: 1000 }}>
-      <div className="modal-card" style={{ maxWidth: '420px', position: 'relative' }}>
+    <div className="modal-overlay open" style={{ display: 'flex', zIndex: 10000 }}>
+      <div className="modal-content open" style={{ maxWidth: '420px', position: 'relative', textAlign: 'left' }}>
         <button 
           onClick={onClose} 
           style={{ position: 'absolute', top: '16px', right: '16px', background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer' }}
