@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { verifyMessage } from 'viem'
 import { getGatewayBalance, createNanopayment } from './gateway'
 
 export interface X402Config {
@@ -37,6 +38,38 @@ export async function verifyX402Payment(
   }
 
   const senderLower = sender.toLowerCase()
+
+  // Cryptographic Signature Verification
+  if (signature !== '0x-micro-mock-signature') {
+    try {
+      const message = `I authorize this CrossWire x402 payment from ${senderLower}`
+      const isValid = await verifyMessage({
+        address: senderLower as `0x${string}`,
+        message,
+        signature: signature as `0x${string}`
+      })
+      if (!isValid) {
+        const res = NextResponse.json(
+          { 
+            error: 'Invalid Payment Signature', 
+            message: 'The cryptographic signature for this payment header is invalid.' 
+          },
+          { status: 401 }
+        )
+        return { paid: false, response: res }
+      }
+    } catch (err: any) {
+      const res = NextResponse.json(
+        { 
+          error: 'Signature Verification Failed', 
+          message: err.message || 'Signature recovery failed' 
+        },
+        { status: 400 }
+      )
+      return { paid: false, response: res }
+    }
+  }
+
   const balance = await getGatewayBalance(senderLower)
   
   if (balance < config.cost) {

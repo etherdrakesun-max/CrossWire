@@ -20,11 +20,72 @@ export async function getGatewayBalance(userAddress: string): Promise<number> {
 }
 
 /**
- * Records a user deposit into their Circle Gateway balance
+ * Records a user deposit into their Circle Gateway balance after verifying the transaction on-chain
  */
 export async function depositToGateway(userAddress: string, amount: number, txHash: string): Promise<any> {
   const addressLower = userAddress.toLowerCase()
   
+  // 1. Replay prevention: Check if txHash has already been processed
+  const existingDeposit = await prisma.gatewayDeposit.findFirst({
+    where: { txHash: { equals: txHash } }
+  })
+  if (existingDeposit) {
+    throw new Error('This deposit transaction hash has already been registered and processed')
+  }
+
+  // 2. Perform on-chain validation of the transaction receipt on Arc Testnet
+  console.log(`[Gateway] Verifying on-chain deposit txHash: ${txHash}`)
+  const publicClient = createPublicClient({
+    chain: arcTestnet,
+    transport: http(process.env.NEXT_PUBLIC_ARC_RPC || 'https://rpc.testnet.arc.network'),
+  })
+
+  const receipt = await publicClient.getTransactionReceipt({ hash: txHash as `0x${string}` })
+  if (!receipt) {
+    throw new Error('Deposit transaction receipt not found on Arc Testnet')
+  }
+
+  if (receipt.status !== 'success') {
+    throw new Error('Deposit transaction failed on-chain')
+  }
+
+  // Verify the target is the USDC token contract on Arc
+  if (receipt.to?.toLowerCase() !== USDC_ADDRESS.toLowerCase()) {
+    throw new Error(`Deposit transaction target is not the USDC token contract. Target: ${receipt.to}, Expected: ${USDC_ADDRESS}`)
+  }
+
+  // Parse logs to find Transfer(from, to, value)
+  let totalUsdcTransferred = BigInt(0)
+  const transferTopic = '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef'
+
+  for (const log of receipt.logs) {
+    const topic1 = log.topics[1]
+    const topic2 = log.topics[2]
+    if (
+      log.topics[0] === transferTopic &&
+      topic1 &&
+      topic2 &&
+      log.address.toLowerCase() === USDC_ADDRESS.toLowerCase()
+    ) {
+      const fromAddr = '0x' + topic1.slice(26).toLowerCase()
+      const toAddr = '0x' + topic2.slice(26).toLowerCase()
+
+      if (fromAddr === addressLower && toAddr === CROSSWIRE_CONTRACT_ADDRESS.toLowerCase()) {
+        const value = BigInt(log.data)
+        totalUsdcTransferred += value
+      }
+    }
+  }
+
+  const expectedUsdcUnits = BigInt(Math.round(amount * 1_000_000))
+  if (totalUsdcTransferred < expectedUsdcUnits) {
+    throw new Error(
+      `Insufficient USDC transferred to protocol contract. Expected at least ${amount} USDC (${expectedUsdcUnits} raw units), but verified logs only show ${Number(totalUsdcTransferred) / 1_000_000} USDC`
+    )
+  }
+
+  console.log(`[Gateway] On-chain deposit verification succeeded: Verified transfer of ${Number(totalUsdcTransferred) / 1_000_000} USDC from ${addressLower}`)
+
   return await prisma.$transaction(async (tx) => {
     // 1. Create GatewayDeposit entry
     const deposit = await tx.gatewayDeposit.create({
@@ -169,18 +230,7 @@ export async function settleBatch(): Promise<{ success: boolean; settledCount: n
   
   const privateKey = process.env.PRIVATE_KEY
   if (!privateKey) {
-    console.warn('⚠️ No PRIVATE_KEY configured for on-chain batch settlement. Simulating...')
-    const simulatedTxHash = `0x${Array.from({ length: 64 }, () => Math.floor(Math.random() * 16).toString(16)).join('')}`
-    await prisma.gatewayNanopayment.updateMany({
-      where: { id: { in: pendingPayments.map(p => p.id) } },
-      data: { status: 'SETTLED', settlementTxHash: simulatedTxHash }
-    })
-    return {
-      success: true,
-      settledCount: pendingPayments.length,
-      totalSettledAmount,
-      txHash: simulatedTxHash
-    }
+    throw new Error('EVM Private Key (PRIVATE_KEY) is not configured in the environment')
   }
 
   try {

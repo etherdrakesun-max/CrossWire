@@ -220,12 +220,24 @@ export default function SendPage() {
       })
 
       try {
+        let signature = '0x-micro-mock-signature'
+        if (walletClient && address) {
+          try {
+            signature = await walletClient.signMessage({
+              message: `I authorize this CrossWire x402 payment from ${address.toLowerCase()}`
+            })
+          } catch (signErr: any) {
+            console.error('Micropayment signing rejected/failed:', signErr)
+            throw new Error(signErr?.message || 'Micropayment authorization signature rejected by user.')
+          }
+        }
+
         const res = await fetch('/api/gateway/x402', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             'x-payment-sender': address!,
-            'x-payment-signature': '0x-micro-mock-signature'
+            'x-payment-signature': signature
           },
           body: JSON.stringify({
             recipient,
