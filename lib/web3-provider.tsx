@@ -25,7 +25,8 @@ const config = getDefaultConfig({
 
 // Inject custom Circle Modular Passkey connector
 if (config && config.connectors) {
-  ;(config.connectors as any).push(circleModularWalletConnector())
+  const connector = config._internal.connectors.setup(circleModularWalletConnector())
+  ;(config.connectors as any).push(connector)
 }
 
 const queryClient = new QueryClient()

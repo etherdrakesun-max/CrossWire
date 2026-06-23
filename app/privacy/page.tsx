@@ -33,7 +33,7 @@ export default function PrivacyPage() {
 
           <h3 style={{ fontSize: '18px', marginTop: '24px', color: 'var(--text-primary)' }}>3. Cookies & Analytics</h3>
           <p>
-            We do not inject third-party ad tracking or cookie-based profiling tools. Minimal, privacy-preserving, self-hosted web traffic counters may be utilized to measure overall site performance during the hackathon.
+            We do not inject third-party ad tracking or cookie-based profiling tools. Minimal, privacy-preserving, self-hosted web traffic counters may be utilized to measure overall site performance and reliability.
           </p>
 
           <h3 style={{ fontSize: '18px', marginTop: '24px', color: 'var(--text-primary)' }}>4. Security Measures</h3>
