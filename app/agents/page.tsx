@@ -61,7 +61,7 @@ export default function AgentsDashboardPage() {
   // Dynamic continuous video royalty billing loop
   useEffect(() => {
     let interval: any
-    if (isStreaming) {
+    if (isStreaming && address) {
       interval = setInterval(async () => {
         setStreamSecs(s => s + 1)
         const ratePerSec = 0.00001 // $0.00001 USDC per second
@@ -77,7 +77,7 @@ export default function AgentsDashboardPage() {
                 type: 'stream_webhook',
                 sourceId: 'streaming-session-player',
                 creatorName: 'Live Creator Streamer',
-                consumerAddress: address || '0x90f79bf6eb2c4f870365e785982e1f101e93b906',
+                consumerAddress: address,
                 metadata: {
                   durationSeconds: 3,
                   payoutCurrency: 'USDC'
@@ -190,12 +190,16 @@ export default function AgentsDashboardPage() {
 
   // Trigger Swarm Audit & Settle Trace
   const triggerSwarmAudit = async () => {
+    if (!address || !isConnected) {
+      toast.error('Please connect your wallet first')
+      return
+    }
     setIsSwarming(true)
     setSwarmLogs([])
     setSwarmResult(null)
     setTraceStep(1) // Stage 1: Request 402
 
-    const mockConsumerAddress = address || '0x90f79bf6eb2c4f870365e785982e1f101e93b906'
+    const mockConsumerAddress = address
     
     // Parse metadata
     const metaParts = metadataField.split(':')
@@ -465,7 +469,13 @@ export default function AgentsDashboardPage() {
 
                     <button 
                       className={`btn w-full flex items-center justify-center gap-2 ${isStreaming ? 'danger' : 'primary'}`}
-                      onClick={() => setIsStreaming(!isStreaming)}
+                      onClick={() => {
+                        if (!address || !isConnected) {
+                          toast.error('Please connect your wallet first')
+                          return
+                        }
+                        setIsStreaming(!isStreaming)
+                      }}
                     >
                       <Tv size={14} /> {isStreaming ? 'Stop Broadcast' : 'Start Broadcast Payouts'}
                     </button>

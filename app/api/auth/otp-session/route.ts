@@ -17,17 +17,9 @@ export async function POST(req: NextRequest) {
     const appId = process.env.NEXT_PUBLIC_CIRCLE_APP_ID
 
     if (!apiKey || !appId) {
-      // High-fidelity fallback mock for hackathon testing and demo purposes
-      console.log('Circle UCW Credentials not fully configured. Running high-fidelity simulation...')
-      await new Promise((r) => setTimeout(r, 1000))
-
-      return NextResponse.json({
-        success: true,
-        simulated: true,
-        userToken: `user_token_sim_${Math.random().toString(36).substring(2, 10)}`,
-        encryptionKey: `enc_key_sim_${Math.random().toString(36).substring(2, 15)}`,
-        appId: appId || 'mock-app-id-12345'
-      })
+      return NextResponse.json({ 
+        error: 'Circle User-Controlled Wallet credentials (CIRCLE_API_KEY or NEXT_PUBLIC_CIRCLE_APP_ID) are not configured in the environment' 
+      }, { status: 500 })
     }
 
     // Call Circle Developer platform to register/fetch user session

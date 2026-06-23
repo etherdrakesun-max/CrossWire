@@ -34,32 +34,11 @@ export async function executeProgrammaticTransfer(params: {
     const amountParsed = parseUnits(params.amount, USDC_DECIMALS)
     const privateKey = process.env.PRIVATE_KEY
 
-    // Fallback: If no PRIVATE_KEY is configured in the environment, simulate the transaction
     if (!privateKey) {
-      console.warn('⚠️ No PRIVATE_KEY configured. Simulating developer-controlled execution...')
-      const mockHash = '0x' + Array.from({ length: 64 }, () => Math.floor(Math.random() * 16).toString(16)).join('')
-      const mockWireId = Math.floor(Math.random() * 100000)
-
-      // Post gas savings to Paymaster sponsor API
-      try {
-        await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/sponsor`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            action: 'record',
-            userAddress: params.ownerAddr,
-            txHash: mockHash,
-            gasSavedUsd: 0.15 // average gas savings sponsored
-          })
-        })
-      } catch (sponsorErr) {
-        console.error('Failed to record sponsored gas for simulated schedule:', sponsorErr)
-      }
-
       return {
-        txHash: mockHash,
-        wireId: mockWireId,
-        success: true
+        txHash: '',
+        success: false,
+        error: 'EVM Private Key (PRIVATE_KEY) is not configured in the environment'
       }
     }
 

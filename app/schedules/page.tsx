@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useAccount } from 'wagmi'
 import toast from 'react-hot-toast'
+import { useModal } from '@/lib/modal-context'
 import Sidebar from '../components/Sidebar'
 import Topbar from '../components/Topbar'
 import RecipientAutocomplete from '../components/RecipientAutocomplete'
@@ -31,6 +32,7 @@ const PURPOSE_CODES = [
 
 export default function SchedulesPage() {
   const { address, isConnected } = useAccount()
+  const { showConfirmation, showError } = useModal()
 
   // State
   const [schedules, setSchedules] = useState<any[]>([])
@@ -169,26 +171,37 @@ export default function SchedulesPage() {
 
   // Handle Cancel / Delete
   const handleDelete = async (id: number) => {
-    if (!confirm('Are you sure you want to cancel this recurring payment schedule?')) return
+    showConfirmation({
+      title: 'Cancel Recurring Schedule',
+      description: 'Are you sure you want to cancel this recurring payment schedule? This action cannot be undone and will prevent future automated dispatches.',
+      destructive: true,
+      confirmText: 'Cancel Schedule',
+      cancelText: 'Keep Schedule',
+      onConfirm: async () => {
+        try {
+          const res = await fetch(`/api/schedules?id=${id}`, {
+            method: 'DELETE'
+          })
 
-    try {
-      const res = await fetch(`/api/schedules?id=${id}`, {
-        method: 'DELETE'
-      })
-
-      if (res.ok) {
-        toast.success('Schedule cancelled and removed')
-        fetchData()
-      } else {
-        toast.error('Failed to cancel schedule')
+          if (res.ok) {
+            toast.success('Schedule cancelled and removed')
+            fetchData()
+          } else {
+            toast.error('Failed to cancel schedule')
+          }
+        } catch (err) {
+          console.error(err)
+          showError({
+            title: 'Cancellation Failed',
+            description: 'We encountered an error while attempting to terminate your payment schedule.',
+            rawError: err
+          })
+        }
       }
-    } catch (err) {
-      console.error(err)
-      toast.error('Error removing schedule')
-    }
+    })
   }
 
-  // Trigger Immediate Mock Cron Run for UI demonstration/testing
+  // Trigger Immediate Cron Execution Run for testing
   const triggerCronRun = async () => {
     setLoading(true)
     try {
