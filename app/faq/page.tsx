@@ -47,7 +47,7 @@ const FAQS: FAQItem[] = [
     id: 6,
     category: 'security',
     question: 'What are the compliance rules for high-value transfers?',
-    answer: 'All individual wire requests exceeding $10,000 USDC automatically trigger the on-chain Multi-Sig engine. The assets remain in a escrow vault until 2-of-3 signatories sign a release signature.'
+    answer: 'All individual transfer requests exceeding $10,000 USDC automatically trigger the secondary signatory approval engine. The assets remain in a secure escrow hold until authorized by corporate signatories.'
   },
 ]
 

@@ -36,9 +36,11 @@ export default function PrivacyPage() {
             We do not inject third-party ad tracking or cookie-based profiling tools. Minimal, privacy-preserving, self-hosted web traffic counters may be utilized to measure overall site performance and reliability.
           </p>
 
+
+
           <h3 style={{ fontSize: '18px', marginTop: '24px', color: 'var(--text-primary)' }}>4. Security Measures</h3>
           <p>
-            Protocol security rules (such as multi-signature approvals for payments exceeding $10,000 USDC) are governed programmatically by smart contract code deployed on the Arc network, reducing reliance on centralized administrative interventions.
+            Protocol security rules (such as dual-authorization approvals for payments exceeding $10,000 USDC) are governed programmatically by smart contract code, reducing reliance on centralized administrative interventions.
           </p>
         </div>
       </main>

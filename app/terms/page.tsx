@@ -31,9 +31,10 @@ export default function TermsPage() {
             The current deployment of the CrossWire interface and router contract operates entirely on the <strong>Arc Testnet (Chain ID 5042002)</strong>. All tokens utilized (Testnet USDC) have zero real-world value. The software is provided "as is" without warranty of any kind. Use at your own risk.
           </p>
 
+
           <h3 style={{ fontSize: '18px', marginTop: '24px', color: 'var(--text-primary)' }}>3. Compliance & Signatory Rules</h3>
           <p>
-            You agree to comply with all applicable local rules and regulations. The protocol incorporates auto-enforcing multi-sig escrow limits ($10,000 USDC threshold) to safeguard treasury operations. Circumventing or exploiting signatory mechanisms is strictly prohibited.
+            You agree to comply with all applicable local rules and regulations. The protocol incorporates auto-enforcing dual-authorization limits ($10,000 USDC threshold) to safeguard treasury operations. Circumventing or exploiting signatory mechanisms is strictly prohibited.
           </p>
 
           <h3 style={{ fontSize: '18px', marginTop: '24px', color: 'var(--text-primary)' }}>4. Revisions to Terms</h3>

@@ -32,7 +32,7 @@ console.log(\`Wire Transfer Initiated! Transaction Hash: \${tx.hash}\`);`
     { id: 'intro', label: 'Introduction' },
     { id: 'quick-start', label: 'Quick Start' },
     { id: 'purpose-codes', label: 'ISO 20022 Purpose Codes' },
-    { id: 'multisig', label: 'Multi-Sig Compliance' },
+    { id: 'multisig', label: 'Secondary Approvals' },
     { id: 'contracts', label: 'Contract References' },
   ]
 
@@ -74,8 +74,8 @@ console.log(\`Wire Transfer Initiated! Transaction Hash: \${tx.hash}\`);`
               Traditional wire transfers depend on correspondent banking networks, creating delays of up to 5 days, manual reconciliations, and unpredictable intermediary fees. CrossWire leverages:
             </p>
             <ul className="text-muted" style={{ paddingLeft: '20px', margin: '16px 0', lineHeight: '1.8' }}>
-              <li><strong>USDC Native Gas on Arc</strong>: Transactions are executed directly using USDC gas precompiles. Developers and users do not need to purchase or handle volatile native network tokens.</li>
-              <li><strong>Circle CCTP (Cross-Chain Transfer Protocol)</strong>: Bridges assets securely across EVM networks by burning USDC on source networks and minting on destination networks, removing bridging pools.</li>
+              <li><strong>USDC Native Gas on Arc</strong>: Transactions are executed directly using native stablecoin transaction routing. Developers and users do not need to purchase or handle volatile native network tokens.</li>
+              <li><strong>Circle CCTP (Cross-Chain Transfer Protocol)</strong>: Bridges assets securely across blockchain networks by burning USDC on source networks and minting on destination networks, removing bridging pools.</li>
               <li><strong>ISO 20022 standard metadata</strong>: Links on-chain transactions directly to traditional corporate accounting structures.</li>
             </ul>
           </section>
@@ -165,21 +165,21 @@ console.log(\`Wire Transfer Initiated! Transaction Hash: \${tx.hash}\`);`
             </table>
           </section>
 
-          {/* Multi-Sig Compliance */}
+          {/* Secondary Approvals */}
           <section id="multisig" style={{ scrollMarginTop: '100px', marginTop: '60px' }}>
             <hr style={{ border: 'none', borderTop: '1px solid var(--border)', marginBottom: '40px' }} />
             <h2 className="flex items-center gap-2" style={{ fontSize: '24px' }}>
               <HelpCircle size={24} className="text-success" />
-              Multi-Sig Compliance
+              Secondary Approvals
             </h2>
             <p className="text-muted" style={{ lineHeight: '1.6' }}>
-              Security rules are written directly into smart contracts. Any single wire transfer transaction exceeding <strong>$10,000 USDC</strong> requires multi-signature validation.
+              Security rules are written directly into smart contracts. Any single wire transfer transaction exceeding <strong>$10,000 USDC</strong> requires secondary corporate signatory validation.
             </p>
             <div className="callout" style={{ background: 'var(--bg-secondary)' }}>
               <div>
                 <strong>Signatory Requirement:</strong>
                 <p className="text-sm mt-1" style={{ color: 'var(--text-secondary)' }}>
-                  A minimum of 2-out-of-3 signatory signatures must be recorded in the contract ledger before the pending transfer is authorized and executed.
+                  A minimum of 2 signatory authorizations must be recorded in the contract registry before the pending transfer is executed.
                 </p>
               </div>
             </div>
