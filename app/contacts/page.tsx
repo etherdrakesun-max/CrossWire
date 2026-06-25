@@ -298,11 +298,11 @@ export default function ContactsPage() {
             </h1>
             
             <div className="flex gap-2">
-              <button className="btn-secondary flex items-center gap-2" onClick={downloadCSVTemplate}>
+              <button className="btn flex items-center gap-2" onClick={downloadCSVTemplate}>
                 <Download size={14} />
                 Template
               </button>
-              <label className="btn-secondary flex items-center gap-2" style={{ cursor: 'pointer', margin: 0 }}>
+              <label className="btn flex items-center gap-2" style={{ cursor: 'pointer', margin: 0 }}>
                 <Upload size={14} />
                 Import CSV
                 <input
@@ -314,7 +314,7 @@ export default function ContactsPage() {
                 />
               </label>
               <button 
-                className="btn-primary flex items-center gap-2"
+                className="btn primary flex items-center gap-2"
                 onClick={() => setIsAdding(!isAdding)}
                 disabled={!isConnected}
               >
@@ -381,8 +381,8 @@ export default function ContactsPage() {
                 </div>
 
                 <div className="flex gap-2">
-                  <button type="submit" className="btn-primary">Save Recipient</button>
-                  <button type="button" className="btn-secondary" onClick={() => setIsAdding(false)}>Cancel</button>
+                  <button type="submit" className="btn primary">Save Recipient</button>
+                  <button type="button" className="btn" onClick={() => setIsAdding(false)}>Cancel</button>
                 </div>
               </form>
             </div>
@@ -421,28 +421,28 @@ export default function ContactsPage() {
                   <p className="text-muted text-sm">No recipients found matching your filter criteria.</p>
                 </div>
               ) : (
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                <table className="database-table">
                   <thead>
-                    <tr style={{ textAlign: 'left', borderBottom: '1px solid var(--border)', background: 'var(--bg-secondary)' }}>
-                      <th style={{ padding: '12px 16px', fontWeight: 600 }}>Favorite</th>
-                      <th style={{ padding: '12px 16px', fontWeight: 600 }}>Beneficiary Name</th>
-                      <th style={{ padding: '12px 16px', fontWeight: 600 }}>Tags</th>
-                      <th style={{ padding: '12px 16px', fontWeight: 600 }}>USDC Wallet Address</th>
-                      <th style={{ padding: '12px 16px', fontWeight: 600, textAlign: 'right' }}>Actions</th>
+                    <tr>
+                      <th>Favorite</th>
+                      <th>Beneficiary Name</th>
+                      <th>Tags</th>
+                      <th>USDC Wallet Address</th>
+                      <th style={{ textAlign: 'right' }}>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
                     {contacts.map((contact) => (
-                      <tr key={contact.id} style={{ borderBottom: '1px solid var(--border)' }}>
-                        <td style={{ padding: '12px 16px' }}>
+                      <tr key={contact.id}>
+                        <td>
                           <button
                             onClick={() => toggleFavorite(contact)}
-                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: contact.isFavorite ? 'var(--accent)' : 'var(--text-muted)' }}
+                            className="btn ghost" style={{ padding: '4px' }}
                           >
-                            <Star size={16} fill={contact.isFavorite ? 'var(--accent)' : 'none'} />
+                            <Star size={16} style={{ color: contact.isFavorite ? 'var(--warning)' : 'var(--text-tertiary)' }} fill={contact.isFavorite ? 'var(--warning)' : 'none'} />
                           </button>
                         </td>
-                        <td style={{ padding: '12px 16px' }}>
+                        <td>
                           {editingId === contact.id ? (
                             <input
                               className="input-notion"
@@ -451,10 +451,10 @@ export default function ContactsPage() {
                               onChange={(e) => setEditName(e.target.value)}
                             />
                           ) : (
-                            <span style={{ fontWeight: 600 }}>{contact.name}</span>
+                            <span style={{ fontWeight: 500 }}>{contact.name}</span>
                           )}
                         </td>
-                        <td style={{ padding: '12px 16px' }}>
+                        <td>
                           {editingId === contact.id ? (
                             <input
                               className="input-notion"
@@ -463,31 +463,29 @@ export default function ContactsPage() {
                               onChange={(e) => setEditLabel(e.target.value)}
                             />
                           ) : contact.label ? (
-                            <span className="badge" style={{ background: 'rgba(255, 255, 255, 0.08)' }}>
+                            <span className="badge gray">
                               {contact.label}
                             </span>
                           ) : (
                             <span className="text-muted">—</span>
                           )}
                         </td>
-                        <td style={{ padding: '12px 16px' }} className="text-mono">
+                        <td className="text-mono">
                           {contact.address}
                         </td>
-                        <td style={{ padding: '12px 16px', textAlign: 'right' }}>
-                          <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                        <td style={{ textAlign: 'right' }}>
+                          <div className="flex gap-2" style={{ justifyContent: 'flex-end' }}>
                             {editingId === contact.id ? (
                               <>
                                 <button
-                                  className="badge green flex items-center gap-1"
+                                  className="btn flex items-center gap-1" style={{ padding: '4px 10px', fontSize: '12px', color: 'var(--success)', borderColor: 'var(--success)' }}
                                   onClick={() => saveEdit(contact.id)}
-                                  style={{ border: 'none', cursor: 'pointer' }}
                                 >
                                   <Check size={12} /> Save
                                 </button>
                                 <button
-                                  className="badge red flex items-center gap-1"
+                                  className="btn flex items-center gap-1" style={{ padding: '4px 10px', fontSize: '12px' }}
                                   onClick={() => setEditingId(null)}
-                                  style={{ border: 'none', cursor: 'pointer' }}
                                 >
                                   <X size={12} /> Cancel
                                 </button>
@@ -496,15 +494,13 @@ export default function ContactsPage() {
                               <>
                                 <button
                                   onClick={() => startEdit(contact)}
-                                  style={{ background: 'none', border: 'none', cursor: 'pointer' }}
-                                  className="text-muted"
+                                  className="btn ghost" style={{ padding: '4px' }}
                                 >
                                   <Edit2 size={14} />
                                 </button>
                                 <button
                                   onClick={() => handleDeleteContact(contact.id)}
-                                  style={{ background: 'none', border: 'none', cursor: 'pointer' }}
-                                  className="text-error"
+                                  className="btn ghost" style={{ padding: '4px', color: 'var(--danger)' }}
                                 >
                                   <Trash2 size={14} />
                                 </button>
