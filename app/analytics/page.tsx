@@ -120,12 +120,12 @@ export default function AnalyticsPage() {
             </div>
             
             <div className="flex items-center gap-3">
-              <div className="flex bg-slate-950 rounded-lg p-0.5" style={{ border: '1px solid rgba(255, 255, 255, 0.05)' }}>
+              <div className="capsule-select-container">
                 {['7', '30', '90'].map((r) => (
                   <button
                     key={r}
                     onClick={() => setRange(r)}
-                    className={`px-3 py-1 text-xs font-semibold rounded ${range === r ? 'bg-primary text-white' : 'text-secondary hover:text-slate-200'}`}
+                    className={`capsule-select-btn font-semibold ${range === r ? 'active' : ''}`}
                   >
                     {r} Days
                   </button>

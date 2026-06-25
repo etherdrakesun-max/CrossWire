@@ -1,8 +1,10 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useAccount, useWalletClient, useSwitchChain } from 'wagmi'
-import { createPublicClient, http, parseUnits, parseEventLogs, keccak256 } from 'viem'
+import { useWalletClient, useSwitchChain } from 'wagmi'
+import { useAccount } from '@/lib/use-crosswire-account'
+import { addSandboxWire } from '@/lib/sandbox-store'
+import { createPublicClient, http, parseUnits, parseEventLogs, keccak256, encodeFunctionData } from 'viem'
 import toast from 'react-hot-toast'
 import Sidebar from '../components/Sidebar'
 import Topbar from '../components/Topbar'
@@ -64,6 +66,12 @@ export default function BridgePage() {
   // Sync USDC balance on source chain
   useEffect(() => {
     async function updateBalance() {
+      const isSandbox = typeof window !== 'undefined' && localStorage.getItem('crosswire_sandbox') === 'true'
+      if (isSandbox) {
+        setSourceUsdcBalance(5000.00)
+        return
+      }
+
       if (!address || !sourceChain) return
       try {
         const config = CCTP_CHAINS[sourceChain]
@@ -105,12 +113,18 @@ export default function BridgePage() {
       throw new Error('Wallet not connected. Connect and verify account.')
     }
 
-    const claimHash = await walletClient.writeContract({
-      address: arcConfig.messageTransmitter,
+    const receiveMessageData = encodeFunctionData({
       abi: messageTransmitterAbi,
       functionName: 'receiveMessage',
       args: [messageBytes, attestationSig as `0x${string}`],
-      account: address!,
+    })
+    const claimHash = await walletClient.request({
+      method: 'eth_sendTransaction',
+      params: [{
+        from: address,
+        to: arcConfig.messageTransmitter,
+        data: receiveMessageData,
+      }]
     })
 
     setMintHash(claimHash)
@@ -126,12 +140,73 @@ export default function BridgePage() {
 
   // Handle new bridge initiation
   const handleBridge = async () => {
-    if (!isConnected || !address) {
+    const isSandbox = typeof window !== 'undefined' && localStorage.getItem('crosswire_sandbox') === 'true'
+
+    if (!isSandbox && (!isConnected || !address)) {
       toast.error('Connect your wallet first')
       return
     }
     if (!amount || parseFloat(amount) <= 0) {
       toast.error('Enter a valid amount')
+      return
+    }
+
+    if (isSandbox) {
+      const activeAddress = address || '0x3a92dB4F4B84F01A18d96b04C63E63e800000000'
+      try {
+        setStep('approve')
+        toast.loading('[Sandbox] Approving TokenMessenger to burn USDC...', { id: 'bridge' })
+        await new Promise(r => setTimeout(r, 1200))
+        const appHash = '0xmock_bridge_approve_' + Math.random().toString(16).substring(2, 10)
+        setApproveHash(appHash)
+        toast.success('[Sandbox] USDC approved for burn')
+
+        setStep('burn')
+        toast.loading('[Sandbox] Burning USDC on source chain...', { id: 'bridge' })
+        await new Promise(r => setTimeout(r, 1200))
+        const bHash = '0xmock_bridge_burn_' + Math.random().toString(16).substring(2, 10)
+        setBurnHash(bHash)
+        toast.success('[Sandbox] USDC burn receipt confirmed')
+
+        setStep('attest')
+        setAttestationStatus('Polling Iris API for attestation...')
+        await new Promise(r => setTimeout(r, 1500))
+        setAttestationStatus('Circle attestation complete')
+        setDebugMessageBytes('0x' + 'ab'.repeat(64))
+        setDebugAttestation('0x' + 'cd'.repeat(65))
+        toast.success('[Sandbox] Circle validator attestation retrieved!')
+
+        setStep('mint')
+        toast.loading('[Sandbox] Minting USDC on Arc Testnet...', { id: 'bridge' })
+        await new Promise(r => setTimeout(r, 1200))
+        const claimHash = '0xmock_bridge_mint_' + Math.random().toString(16).substring(2, 10)
+        setMintHash(claimHash)
+
+        // Save simulated transaction in history!
+        addSandboxWire({
+          sender: activeAddress,
+          recipient: activeAddress,
+          amount: parseUnits(amount, 6).toString(),
+          refHash: bHash,
+          txHash: claimHash,
+          status: 'EXECUTED',
+          timestamp: new Date().toISOString(),
+          memo: `Simulated CCTP Bridge from ${sourceChain}`,
+          purposeCode: 4,
+          events: [{
+            eventType: 'Executed',
+            actor: activeAddress,
+            txHash: claimHash,
+            timestamp: new Date().toISOString()
+          }]
+        })
+
+        setStep('complete')
+        toast.success('[Sandbox] USDC Successfully Minted on Arc!', { id: 'bridge' })
+      } catch (err: any) {
+        setStep('error')
+        setErrorMessage(err.message || 'Sandbox Bridge simulation failed')
+      }
       return
     }
 
@@ -149,12 +224,18 @@ export default function BridgePage() {
       toast.loading('Approving TokenMessenger to burn USDC...', { id: 'bridge' })
 
       // Write Approval
-      const appHash = await walletClient!.writeContract({
-        address: chainConfig.usdcAddress,
+      const approveData = encodeFunctionData({
         abi: erc20Abi,
         functionName: 'approve',
         args: [chainConfig.tokenMessenger, amountParsed],
-        account: address!,
+      })
+      const appHash = await walletClient!.request({
+        method: 'eth_sendTransaction',
+        params: [{
+          from: address,
+          to: chainConfig.usdcAddress,
+          data: approveData,
+        }]
       })
       setApproveHash(appHash)
 
@@ -169,13 +250,12 @@ export default function BridgePage() {
       setStep('burn')
       toast.loading('Burning USDC on source chain...', { id: 'bridge' })
 
-      const mintRecipient = addressToBytes32(address)
+      const mintRecipient = addressToBytes32(address!)
       const destinationCaller = addressToBytes32('0x0000000000000000000000000000000000000000')
       const maxFee = 0n
       const minFinalityThreshold = 2000 // Standard hard finality CCTP transfer
 
-      const bHash = await walletClient!.writeContract({
-        address: chainConfig.tokenMessenger,
+      const depositForBurnData = encodeFunctionData({
         abi: tokenMessengerAbi,
         functionName: 'depositForBurn',
         args: [
@@ -187,7 +267,14 @@ export default function BridgePage() {
           maxFee,
           minFinalityThreshold
         ],
-        account: address!,
+      })
+      const bHash = await walletClient!.request({
+        method: 'eth_sendTransaction',
+        params: [{
+          from: address,
+          to: chainConfig.tokenMessenger,
+          data: depositForBurnData,
+        }]
       })
       setBurnHash(bHash)
 
@@ -234,6 +321,60 @@ export default function BridgePage() {
 
   // Handle Resume for Error Recovery
   const handleResume = async () => {
+    const isSandbox = typeof window !== 'undefined' && localStorage.getItem('crosswire_sandbox') === 'true'
+
+    if (isSandbox) {
+      if (!resumeBurnHash.startsWith('0x') || resumeBurnHash.length !== 66) {
+        toast.error('Enter a valid 66-character transaction hash')
+        return
+      }
+      const activeAddress = address || '0x3a92dB4F4B84F01A18d96b04C63E63e800000000'
+      setStep('attest')
+      setBurnHash(resumeBurnHash)
+      setApproveHash('')
+      setMintHash('')
+      toast.loading('[Sandbox] Querying Circle Iris for burn verification...', { id: 'bridge' })
+      
+      try {
+        await new Promise(r => setTimeout(r, 1500))
+        setAttestationStatus('Circle attestation complete')
+        setDebugMessageBytes('0x' + 'ab'.repeat(64))
+        setDebugAttestation('0x' + 'cd'.repeat(65))
+        toast.success('[Sandbox] Circle validator attestation retrieved!')
+
+        setStep('mint')
+        toast.loading('[Sandbox] Minting USDC on Arc Testnet...', { id: 'bridge' })
+        await new Promise(r => setTimeout(r, 1200))
+        const claimHash = '0xmock_bridge_mint_' + Math.random().toString(16).substring(2, 10)
+        setMintHash(claimHash)
+
+        addSandboxWire({
+          sender: activeAddress,
+          recipient: activeAddress,
+          amount: parseUnits(amount || '100', 6).toString(),
+          refHash: resumeBurnHash,
+          txHash: claimHash,
+          status: 'EXECUTED',
+          timestamp: new Date().toISOString(),
+          memo: `Simulated CCTP Resume from ${resumeSourceChain}`,
+          purposeCode: 4,
+          events: [{
+            eventType: 'Executed',
+            actor: activeAddress,
+            txHash: claimHash,
+            timestamp: new Date().toISOString()
+          }]
+        })
+
+        setStep('complete')
+        toast.success('[Sandbox] USDC Successfully Minted on Arc!', { id: 'bridge' })
+      } catch (err: any) {
+        setStep('error')
+        setErrorMessage(err.message || 'Sandbox Bridge simulation failed')
+      }
+      return
+    }
+
     if (!resumeBurnHash.startsWith('0x') || resumeBurnHash.length !== 66) {
       toast.error('Enter a valid 66-character transaction hash')
       return
@@ -313,10 +454,10 @@ export default function BridgePage() {
         <div className="page-container animate-fade-in">
           <h1 className="flex items-center gap-3">
             <ArrowRightLeft size={32} strokeWidth={1.5} className="text-primary" />
-            CCTP V2 Bridge
+            Treasury Funding Bridge
           </h1>
           <p className="text-muted text-sm" style={{ marginBottom: '20px' }}>
-            Bridge native USDC directly using Circle's V2 Cross-Chain Transfer Protocol burn-and-mint mechanism.
+            Bridge native USDC directly using Circle's Cross-Chain Transfer Protocol (CCTP) secure minting pipeline.
           </p>
 
           <div className="tabs" style={{ display: 'flex', gap: '8px', marginBottom: '24px', borderBottom: '1px solid var(--border)', paddingBottom: '8px' }}>
@@ -340,25 +481,25 @@ export default function BridgePage() {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div className={`pipeline-step ${getStepClass(step, 'approve', ['burn', 'attest', 'mint', 'complete'])}`}>
                   <div className="pipeline-dot"><Shield size={16} strokeWidth={1.5} /></div>
-                  <div className="pipeline-label">Approve Spend</div>
+                  <div className="pipeline-label">Authorize Float</div>
                 </div>
                 <div className={`pipeline-line ${['burn', 'attest', 'mint', 'complete'].includes(step) ? 'completed' : step === 'approve' ? 'active' : ''}`} />
                 
                 <div className={`pipeline-step ${getStepClass(step, 'burn', ['attest', 'mint', 'complete'])}`}>
                   <div className="pipeline-dot"><Flame size={16} strokeWidth={1.5} /></div>
-                  <div className="pipeline-label">Burn USDC</div>
+                  <div className="pipeline-label">Initiate Bridge</div>
                 </div>
                 <div className={`pipeline-line ${['attest', 'mint', 'complete'].includes(step) ? 'completed' : step === 'burn' ? 'active' : ''}`} />
                 
                 <div className={`pipeline-step ${getStepClass(step, 'attest', ['mint', 'complete'])}`}>
                   <div className="pipeline-dot"><RefreshCcw size={16} strokeWidth={1.5} /></div>
-                  <div className="pipeline-label">Attestation</div>
+                  <div className="pipeline-label">Signing Verification</div>
                 </div>
                 <div className={`pipeline-line ${['mint', 'complete'].includes(step) ? 'completed' : step === 'attest' ? 'active' : ''}`} />
                 
                 <div className={`pipeline-step ${getStepClass(step, 'mint', ['complete'])}`}>
                   <div className="pipeline-dot"><Coins size={16} strokeWidth={1.5} /></div>
-                  <div className="pipeline-label">Mint on Arc</div>
+                  <div className="pipeline-label">Complete Settlement</div>
                 </div>
                 <div className={`pipeline-line ${step === 'complete' ? 'completed' : ''}`} />
                 
@@ -374,7 +515,7 @@ export default function BridgePage() {
           {step !== 'idle' && step !== 'error' && step !== 'complete' && (
             <div className="card animate-slide-up" style={{ marginBottom: '24px' }}>
               <div className="card-header">
-                <span style={{ fontWeight: 600 }}>CCTP Bridge Pipeline Console</span>
+                <span style={{ fontWeight: 600 }}>Bridge Processing Status</span>
                 <span className="badge purple">Running</span>
               </div>
               <div className="card-body">
@@ -405,11 +546,11 @@ export default function BridgePage() {
                   )}
                 </div>
 
-                {attestationStatus && (
+                 {attestationStatus && (
                   <div className="callout" style={{ background: 'rgba(35, 131, 226, 0.05)', borderColor: 'var(--primary)' }}>
                     <span className="callout-icon text-primary"><RefreshCcw size={20} className="animate-spin" /></span>
                     <div>
-                      <strong>CCTP Attestation Pipeline</strong>
+                      <strong>Bridge Attestation Status</strong>
                       <p className="text-muted text-xs mt-1">{attestationStatus}</p>
                     </div>
                   </div>
@@ -419,11 +560,11 @@ export default function BridgePage() {
                 {(debugMessageBytes || debugAttestation) && (
                   <div style={{ marginTop: '16px', borderTop: '1px solid var(--border)', paddingTop: '16px' }}>
                     <h5 style={{ margin: '0 0 8px', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em' }} className="text-muted">
-                      Advanced Debug payloads
+                      Advanced audit logs
                     </h5>
                     {debugMessageBytes && (
                       <div style={{ marginBottom: '8px' }}>
-                        <div className="text-xs text-muted">Message Hex Bytes</div>
+                        <div className="text-xs text-muted">Transfer Message Hex</div>
                         <pre style={{ margin: 0, padding: '8px', fontSize: '10px', background: 'var(--border)', borderRadius: '4px', overflowX: 'auto', maxBlockSize: '100px' }} className="text-mono">
                           {debugMessageBytes}
                         </pre>
@@ -431,7 +572,7 @@ export default function BridgePage() {
                     )}
                     {debugAttestation && (
                       <div>
-                        <div className="text-xs text-muted">Attestation Signature</div>
+                        <div className="text-xs text-muted">Verification Signature</div>
                         <pre style={{ margin: 0, padding: '8px', fontSize: '10px', background: 'var(--border)', borderRadius: '4px', overflowX: 'auto', maxBlockSize: '100px' }} className="text-mono">
                           {debugAttestation}
                         </pre>
@@ -447,8 +588,8 @@ export default function BridgePage() {
           {activeTab === 'new' && step === 'idle' && (
             <div className="card animate-slide-up" style={{ maxWidth: '540px' }}>
               <div className="card-header">
-                <span style={{ fontWeight: 600 }}>CCTP Bridge configuration</span>
-                <span className="badge green">V2 Production Flow</span>
+                <span style={{ fontWeight: 600 }}>Treasury Funding Bridge Configuration</span>
+                <span className="badge green">Secure Bridge Transfer</span>
               </div>
               <div className="card-body">
                 <div className="form-group">
@@ -499,9 +640,9 @@ export default function BridgePage() {
                 <div className="callout" style={{ marginBottom: '20px' }}>
                   <span className="callout-icon"><Clock size={20} strokeWidth={1.5} /></span>
                   <div>
-                    <strong>CCTP V2 Standard Finality Time</strong>
+                    <strong>Standard Attestation Times</strong>
                     <p className="text-muted text-xs mt-1">
-                      Ethereum Sepolia requires hard block finality (~12-15 minutes) before Iris signs the attestation. Base & Arbitrum Sepolia settle in ~2-3 minutes.
+                      Ethereum Sepolia requires hard block finality (~12-15 minutes) before attestation signatures are generated. Base & Arbitrum Sepolia settle in ~2-3 minutes.
                     </p>
                   </div>
                 </div>
@@ -513,7 +654,7 @@ export default function BridgePage() {
                   style={{ width: '100%', background: 'var(--accent)', border: 'none' }}
                 >
                   {isConnected ? (
-                    <><ArrowRightLeft size={16} strokeWidth={1.5} /> Initiate CCTP Burn & Mint</>
+                    <><ArrowRightLeft size={16} strokeWidth={1.5} /> Initiate Bridge Transfer</>
                   ) : (
                     <><Plug size={16} strokeWidth={1.5} /> Connect Wallet First</>
                   )}

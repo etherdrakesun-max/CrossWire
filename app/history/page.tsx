@@ -1,7 +1,9 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useAccount, usePublicClient } from 'wagmi'
+import { usePublicClient } from 'wagmi'
+import { useAccount } from '@/lib/use-crosswire-account'
+import { getSandboxWires } from '@/lib/sandbox-store'
 import { formatUnits } from 'viem'
 import Sidebar from '../components/Sidebar'
 import Topbar from '../components/Topbar'
@@ -28,18 +30,25 @@ export default function HistoryPage() {
 
   useEffect(() => {
     const fetchEvents = async () => {
+      const isSandbox = typeof window !== 'undefined' && localStorage.getItem('crosswire_sandbox') === 'true'
       try {
         const res = await fetch('/api/wires?limit=100')
         const data = await res.json()
         
-        const allEvents: WireEvent[] = (data.wires || []).map((wire: any) => ({
+        let wires = data.wires || []
+        if (isSandbox) {
+          const sWires = getSandboxWires()
+          wires = [...sWires, ...wires]
+        }
+
+        const allEvents: WireEvent[] = wires.map((wire: any) => ({
           wireId: wire.id.toString(),
           sender: wire.sender,
           recipient: wire.recipient,
           amount: formatUnits(BigInt(wire.amount), 6),
           reference: wire.refHash,
           txHash: wire.txHash,
-          blockNumber: wire.blockNumber.toString(),
+          blockNumber: (wire.blockNumber || 0).toString(),
           type: wire.status === 'EXECUTED' ? 'executed' : 'initiated',
         }))
 
@@ -52,8 +61,16 @@ export default function HistoryPage() {
     }
 
     fetchEvents()
-    const interval = setInterval(fetchEvents, 20000)
+    const interval = setInterval(fetchEvents, 10000)
     return () => clearInterval(interval)
+  }, [])
+
+  useEffect(() => {
+    const handleSandboxChange = () => {
+      window.location.reload()
+    }
+    window.addEventListener('crosswire_sandbox_changed', handleSandboxChange)
+    return () => window.removeEventListener('crosswire_sandbox_changed', handleSandboxChange)
   }, [])
 
   const filteredEvents = events.filter((e) => {
@@ -138,10 +155,15 @@ export default function HistoryPage() {
                     </td>
                     <td>
                       <a
-                        href={getExplorerTxUrl(evt.txHash)}
+                        href={evt.txHash.startsWith('0xmock') ? '#' : getExplorerTxUrl(evt.txHash)}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="explorer-link text-mono"
+                        onClick={(e) => {
+                          if (evt.txHash.startsWith('0xmock')) {
+                            e.preventDefault()
+                          }
+                        }}
                       >
                         {evt.txHash.slice(0, 10)}… ↗
                       </a>

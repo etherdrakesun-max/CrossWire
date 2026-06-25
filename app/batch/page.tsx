@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { useAccount, usePublicClient, useWalletClient } from 'wagmi'
-import { parseUnits, keccak256, encodePacked } from 'viem'
+import { parseUnits, keccak256, encodePacked, encodeFunctionData } from 'viem'
 import toast from 'react-hot-toast'
 import Papa from 'papaparse'
 import Sidebar from '../components/Sidebar'
@@ -74,7 +74,7 @@ export default function BatchPage() {
         // Validate
         const valid = parsed.filter((r) => r.recipient.startsWith('0x') && r.recipient.length === 42 && parseFloat(r.amount) > 0)
         setRows(valid)
-        toast.success(`Loaded ${valid.length} valid wire transfers`)
+        toast.success(`Loaded ${valid.length} valid settlements`)
       },
       error: () => {
         toast.error('Failed to parse CSV file')
@@ -92,13 +92,18 @@ export default function BatchPage() {
       })
 
       // Approve total
-      const approveHash = await walletClient!.writeContract({
-        address: USDC_ADDRESS,
+      const approveData = encodeFunctionData({
         abi: erc20Abi,
         functionName: 'approve',
         args: [CROSSWIRE_CONTRACT_ADDRESS, totalAmount],
-        chain: null,
-        account: address!,
+      })
+      const approveHash = await walletClient!.request({
+        method: 'eth_sendTransaction',
+        params: [{
+          from: address,
+          to: USDC_ADDRESS,
+          data: approveData,
+        }]
       })
       await publicClient!.waitForTransactionReceipt({ hash: approveHash })
 
@@ -111,13 +116,18 @@ export default function BatchPage() {
 
       setRows((prev) => prev.map((r) => ({ ...r, status: 'executing' as const })))
 
-      const batchHash = await walletClient!.writeContract({
-        address: CROSSWIRE_CONTRACT_ADDRESS,
+      const batchData = encodeFunctionData({
         abi: crossWireRouterAbi,
         functionName: 'batchInitiateWires',
         args: [recipients, amounts, references, purposeCodes],
-        chain: null,
-        account: address!,
+      })
+      const batchHash = await walletClient!.request({
+        method: 'eth_sendTransaction',
+        params: [{
+          from: address,
+          to: CROSSWIRE_CONTRACT_ADDRESS,
+          data: batchData,
+        }]
       })
 
       updateModal({
@@ -142,13 +152,13 @@ export default function BatchPage() {
             <p>Successfully processed <strong>{rows.length} wire transfers</strong> in a single atomic transaction block.</p>
             {hasEscrowed ? (
               <div className="callout" style={{ borderColor: 'var(--warning)', background: 'var(--warning-bg)', margin: 0 }}>
-                <strong className="text-warning font-semibold">Multi-Sig Escrow Active</strong>
-                <p className="text-warning text-xs mt-1">One or more wires in this batch exceed $10,000 USDC. They are held in escrow pending secondary signatory authorization on the Compliance Board.</p>
+                <strong className="text-warning font-semibold">Secondary Authorization Hold Active</strong>
+                <p className="text-warning text-xs mt-1">One or more transfers in this batch exceed $10,000 USDC. They are held in escrow pending secondary signatory authorization on the Compliance Board.</p>
               </div>
             ) : (
               <div className="callout" style={{ borderColor: 'var(--success)', background: 'var(--success-bg)', margin: 0 }}>
                 <strong className="text-success font-semibold">Atomic Low-Cost Settlement</strong>
-                <p className="text-success text-xs mt-1">All {rows.length} transfers completed gas-efficiently using USDC native precompiles in under 1 second.</p>
+                <p className="text-success text-xs mt-1">All {rows.length} transfers completed gas-efficiently using native stablecoin routing in under 1 second.</p>
               </div>
             )}
           </div>
@@ -213,7 +223,7 @@ export default function BatchPage() {
       showModal({
         type: 'warning',
         title: 'Compliance: High-Value Batch Wires Detected',
-        description: `This batch contains one or more transfers exceeding the $10,000 limit. Standard wires will settle immediately, but high-value wires will be securely locked in on-chain multi-sig escrow.`,
+        description: `This batch contains one or more transfers exceeding the $10,000 threshold. Standard settlements will process immediately, but high-value transfers will be held in secure escrow pending secondary authorization.`,
         confirmText: 'Execute Compliance Batch',
         cancelText: 'Cancel & Revise',
         onConfirm: () => proceedBatchExecute(totalAmount, recipients, amounts, references, purposeCodes)
@@ -313,7 +323,7 @@ export default function BatchPage() {
                   {isProcessing ? (
                     <><Clock size={16} strokeWidth={1.5} /> Processing...</>
                   ) : (
-                    <><Zap size={16} strokeWidth={1.5} /> Execute {rows.length} Wires</>
+                    <><Zap size={16} strokeWidth={1.5} /> Execute {rows.length} Settlements</>
                   )}
                 </button>
                 <div className="flex items-center gap-1.5 px-3 py-1.5 rounded" style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}>
@@ -426,7 +436,7 @@ export default function BatchPage() {
               {/* Summary */}
               <div className="stat-grid" style={{ marginTop: '24px' }}>
                 <div className="stat-card">
-                  <div className="stat-label">Total Wires</div>
+                  <div className="stat-label">Total Settlements</div>
                   <div className="stat-value">{rows.length}</div>
                 </div>
                 <div className="stat-card">
@@ -462,7 +472,7 @@ export default function BatchPage() {
               <div className="empty-state-icon flex justify-center mb-4">
                 <Rows size={32} strokeWidth={1.25} />
               </div>
-              <div className="empty-state-text">Upload a CSV file or add rows manually to start a batch wire transfer.</div>
+              <div className="empty-state-text">Upload a CSV file or add rows manually to start a bulk settlement.</div>
             </div>
           )}
         </div>

@@ -357,7 +357,7 @@ export default function ContactsPage() {
                 </div>
 
                 <div className="form-group">
-                  <label className="form-label">Beneficiary Address (EVM hex format)</label>
+                  <label className="form-label">Beneficiary Address (Standard hex format)</label>
                   <input
                     className="input-notion text-mono"
                     placeholder="0x..."

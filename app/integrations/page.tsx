@@ -11,29 +11,21 @@ import { useModal } from '@/lib/modal-context'
 
 const INTEGRATIONS = [
   {
-    category: 'AI Agent Mesh',
+    category: 'Autonomous Settlement Pipelines',
     items: [
       {
         icon: <Scale size={24} strokeWidth={1.25} />,
-        name: 'CrossWireAgent Smart Contract',
+        name: 'AI Trust Registry (Smart Contract)',
         status: 'active',
-        desc: 'ERC-8004 Agent Trust Identity Registry and ERC-8183 Job Escrow contract using USDC on Arc.',
+        desc: 'Identity trust registry and secure job escrow routing system enabling secure agent authentication.',
         docs: 'https://testnet.arcscan.app',
         usage: 'Used in: AI Identity Registry, Escrow Deposit & Job Settle',
       },
       {
-        icon: <Blocks size={24} strokeWidth={1.25} />,
-        name: 'Autonomous FOSS Sidecar Webhooks',
-        status: 'active',
-        desc: 'Webhooks for Navidrome music scrobbling, Owncast streaming, and RSSHub citation feeds that auto-trigger splits.',
-        docs: 'https://github.com/etherdrakesun/track-1-CrossWire',
-        usage: 'Endpoints: /api/webhooks/owncast, /api/webhooks/navidrome',
-      },
-      {
         icon: <ShieldCheck size={24} strokeWidth={1.25} />,
-        name: 'x402 Micropayment Gated APIs',
+        name: 'Pay-Per-Use API Gateways',
         status: 'active',
-        desc: 'HTTP 402 paywall routes that restrict premium quotation and citation indexes unless signed EIP-712 auth is supplied.',
+        desc: 'Secure, pay-per-call API endpoints enabling automated settlements for premium market data and citations.',
         docs: 'https://github.com/etherdrakesun/track-1-CrossWire',
         usage: 'Endpoints: /api/premium/quote, /api/premium/citation',
       },
@@ -44,19 +36,19 @@ const INTEGRATIONS = [
     items: [
       {
         icon: <Database size={24} strokeWidth={1.25} />,
-        name: 'USDC on Arc',
+        name: 'Settlement Currency (USDC)',
         status: 'active',
-        desc: 'Native gas token + ERC-20 interface. 6-decimal precision. Zero-cost gas abstraction.',
+        desc: 'Institutional USD-backed stablecoin used for instant settling with zero-fee transaction abstraction.',
         docs: 'https://docs.arc.network/building-on-arc/usdc',
-        usage: 'Used in: Send Payment, Batch Wire, Bridge, Smart Contract',
+        usage: 'Used in: Send Payment, Bulk Settlement, Treasury Bridge, Smart Contracts',
       },
       {
         icon: <Scale size={24} strokeWidth={1.25} />,
-        name: 'CrossWireRouter Smart Contract',
+        name: 'Settlement Router (Smart Contract)',
         status: 'active',
-        desc: 'Custom Solidity contract deployed on Arc Testnet. Supports wire initiation, multi-sig approval, batch execution, and SWIFT-style reference encoding.',
+        desc: 'Corporate routing contract supporting instant settlements, secondary approvals, bulk payouts, and regulatory reference mapping.',
         docs: 'https://testnet.arcscan.app',
-        usage: 'Used in: Send Payment, Batch Wire, Compliance Audit',
+        usage: 'Used in: Send Payment, Bulk Settlement, Compliance Center',
       },
     ],
   },
@@ -65,41 +57,41 @@ const INTEGRATIONS = [
     items: [
       {
         icon: <Send size={24} strokeWidth={1.25} />,
-        name: 'App Kit — Send',
+        name: 'Circle Transfer Protocol',
         status: 'active',
-        desc: 'Same-chain USDC transfers via kit.send(). Abstracted wallet-to-wallet payments with automatic gas handling.',
+        desc: 'High-performance transfer interface providing instant payment settlement and fee-abstracted corporate payouts.',
         docs: 'https://docs.arc.network/app-kit/send',
         usage: 'Used in: Send Payment (direct transfer mode)',
       },
       {
         icon: <ArrowRightLeft size={24} strokeWidth={1.25} />,
-        name: 'App Kit — Bridge (CCTP)',
+        name: 'Circle Cross-Chain Protocol (CCTP)',
         status: 'active',
-        desc: 'Cross-chain USDC transfer via Circle Cross-Chain Transfer Protocol. Burn → Attestation → Mint pipeline with real-time visualization.',
+        desc: "Circle's official secure bridging pipeline allowing institutional asset movement across multiple networks.",
         docs: 'https://docs.arc.network/app-kit/bridge',
         usage: 'Used in: CCTP Bridge page',
       },
       {
         icon: <Repeat size={24} strokeWidth={1.25} />,
-        name: 'App Kit — Swap (StableFX)',
+        name: 'Corporate FX Conversions',
         status: 'available',
-        desc: 'Token swap between USDC and EURC on Arc. Requires KIT_KEY from Circle Console.',
+        desc: 'Automated institutional-grade FX swapping protocol for multi-currency treasury operations.',
         docs: 'https://docs.arc.network/app-kit/swap',
         usage: 'Available for: FX conversion workflows',
       },
       {
         icon: <Building size={24} strokeWidth={1.25} />,
-        name: 'App Kit — Unified Balance',
+        name: 'Unified Treasury Balance',
         status: 'available',
-        desc: 'Aggregate USDC from multiple chains into a single spendable balance. Deposit from Base, Arbitrum, Ethereum — spend on Arc.',
+        desc: 'Unified corporate balance aggregator consolidated across multiple blockchain networks.',
         docs: 'https://docs.arc.network/app-kit/unified-balance',
         usage: 'Available for: Treasury management, multi-chain spending',
       },
       {
         icon: <Blocks size={24} strokeWidth={1.25} />,
-        name: 'App Kit — Combine',
+        name: 'Composite Workflows',
         status: 'available',
-        desc: 'Compose multiple App Kit operations in a single workflow. Bridge + Swap in one call.',
+        desc: 'Streamlined multi-step operations combining bridging and FX conversion in a single transaction.',
         docs: 'https://docs.arc.network/app-kit/references/sdk-reference',
         usage: 'Available for: Complex multi-step transfers',
       },
@@ -255,8 +247,8 @@ export default function IntegrationsPage() {
                     setTimeout(() => {
                       updateModal({
                         type: 'success',
-                        title: 'Ledger Parsed successfully',
-                        description: '14 wire entries have been parsed and batched into the queue.'
+                        title: 'Ledger Parsed Successfully',
+                        description: '14 settlement entries have been parsed and batched into the queue.'
                       })
                     }, 3000)
                   }}
@@ -269,29 +261,29 @@ export default function IntegrationsPage() {
                   onClick={() => {
                     showModal({
                       type: 'tx-status',
-                      title: 'Broadcasting to Arc',
-                      description: 'Submitting transaction payload to the Arc precompiles...',
+                      title: 'Broadcasting to Settlement Network',
+                      description: 'Submitting transaction payload to the network validators...',
                       txStatus: 'pending',
                       txHash: '0x28972Ea3B462bCc711BCE1a1D13426e64906a46C7892a019b8cf92b8d00123'
                     })
                     setTimeout(() => {
                       updateModal({
-                        title: 'Confirming On-chain',
-                        description: 'Waiting for block finality on the Arc Testnet ledger...',
+                        title: 'Confirming Settlement',
+                        description: 'Waiting for validation response...',
                         txStatus: 'confirming'
                       })
                     }, 2000)
                     setTimeout(() => {
                       updateModal({
-                        title: 'Wire Transfer Settled',
-                        description: 'Your wire has been confirmed and settled successfully.',
+                        title: 'Settlement Completed',
+                        description: 'Your transfer has been confirmed and settled successfully.',
                         txStatus: 'success'
                       })
                     }, 4000)
                   }}
                   className="btn text-xs"
                 >
-                  Blockchain Tx Flow
+                  Settlement Flow
                 </button>
               </div>
             </div>
@@ -302,9 +294,9 @@ export default function IntegrationsPage() {
                 <button 
                   onClick={() => showModal({
                     type: 'error',
-                    title: 'On-chain Execution Reverted',
-                    description: 'The CrossWire router encountered an EVM execution error during validation.',
-                    errorDetails: 'Error: VM Exception while processing transaction: revert InsufficientBalance (required: 50000000, balance: 25000000)',
+                    title: 'Execution Interrupted',
+                    description: 'The Router encountered an processing execution error during validation.',
+                    errorDetails: 'Error Code: 403-1002 (Insufficient Balance: Required 50.00 USDC, Available 25.00 USDC)',
                     showRetry: true,
                     onRetry: () => console.log('Retrying...')
                   })}
@@ -317,7 +309,7 @@ export default function IntegrationsPage() {
                   onClick={() => showModal({
                     type: 'error',
                     title: 'Signature Request Rejected',
-                    description: 'You rejected the transaction signature request in your wallet client. Please approve the request to dispatch the wire.',
+                    description: 'You rejected the signature request. Please approve the request to dispatch the settlement.',
                   })}
                   className="btn text-xs"
                 >
@@ -327,13 +319,13 @@ export default function IntegrationsPage() {
                 <button 
                   onClick={() => showModal({
                     type: 'error',
-                    title: 'Gas Precompile Failure',
-                    description: 'Your wallet has insufficient USDC balance to pay the network transaction gas fees on Arc. Please deposit USDC.',
-                    errorDetails: 'Error Code: ARC_INSUFFICIENT_GAS_BALANCE'
+                    title: 'Network Fee Limit Exceeded',
+                    description: 'Your wallet has insufficient USDC balance to cover transaction fees. Please top up your balance.',
+                    errorDetails: 'Error Code: INSUFFICIENT_FEE_BALANCE'
                   })}
                   className="btn text-xs"
                 >
-                  Gas Precompile Fail
+                  Transaction Fee Fail
                 </button>
               </div>
             </div>

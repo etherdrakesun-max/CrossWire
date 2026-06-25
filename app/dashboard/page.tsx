@@ -1,13 +1,15 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useAccount, usePublicClient } from 'wagmi'
+import { usePublicClient } from 'wagmi'
+import { useAccount } from '@/lib/use-crosswire-account'
+import { getSandboxWires } from '@/lib/sandbox-store'
 import { formatUnits } from 'viem'
 import Sidebar from '../components/Sidebar'
 import Topbar from '../components/Topbar'
 import { USDC_ADDRESS, CROSSWIRE_CONTRACT_ADDRESS, getExplorerAddressUrl } from '@/lib/arc-config'
 import { erc20Abi, crossWireRouterAbi } from '@/lib/contracts'
-import { LayoutGrid, AlertTriangle, Code, History, Info, Bell } from 'lucide-react'
+import { LayoutGrid, AlertTriangle, Code, History, Info, Bell, Sparkles, ArrowRight } from 'lucide-react'
 import { useModal } from '@/lib/modal-context'
 import { ResponsiveContainer, AreaChart, Area } from 'recharts'
 import { registerPushSubscription } from '@/lib/push-notifications'
@@ -34,30 +36,57 @@ export default function DashboardPage() {
       .catch(err => console.error('Error loading mini dashboard chart data:', err))
   }, [address])
 
-
-  // Fetch USDC balance
   useEffect(() => {
-    if (!address || !publicClient) return
+    const handleSandboxChange = () => {
+      window.location.reload()
+    }
+    window.addEventListener('crosswire_sandbox_changed', handleSandboxChange)
+    return () => window.removeEventListener('crosswire_sandbox_changed', handleSandboxChange)
+  }, [])
 
+
+  // Fetch USDC balance & stats
+  useEffect(() => {
     const fetchData = async () => {
+      const isSandbox = typeof window !== 'undefined' && localStorage.getItem('crosswire_sandbox') === 'true'
+      
+      if (!isSandbox && (!address || !publicClient)) return
+
       try {
-        // Get USDC balance
-        const bal = await publicClient.readContract({
-          address: USDC_ADDRESS,
-          abi: erc20Abi,
-          functionName: 'balanceOf',
-          args: [address],
-        })
-        setBalance(formatUnits(bal as bigint, 6))
+        if (isSandbox) {
+          setBalance('150000.00')
+        } else {
+          // Get USDC balance
+          const bal = await publicClient!.readContract({
+            address: USDC_ADDRESS,
+            abi: erc20Abi,
+            functionName: 'balanceOf',
+            args: [address!],
+          })
+          setBalance(formatUnits(bal as bigint, 6))
+        }
 
         // Get stats & recent wires from API
         try {
           const statsRes = await fetch('/api/stats')
           const statsData = await statsRes.json()
           if (statsData) {
-            setWireCount(statsData.wireCount || '0')
-            setTotalVolume(formatUnits(BigInt(statsData.totalVolume || '0'), 6))
-            setRecentWires(statsData.recentWires || [])
+            let wires = statsData.recentWires || []
+            let count = BigInt(statsData.wireCount || '0')
+            let volume = BigInt(statsData.totalVolume || '0')
+
+            if (isSandbox) {
+              const sWires = getSandboxWires()
+              // Merge and format
+              wires = [...sWires, ...wires]
+              count += BigInt(sWires.length)
+              const sVol = sWires.reduce((acc, w) => acc + BigInt(w.amount), 0n)
+              volume += sVol
+            }
+
+            setWireCount(count.toString())
+            setTotalVolume(formatUnits(volume, 6))
+            setRecentWires(wires)
           }
         } catch (err) {
           console.error('Dashboard API fetch error:', err)
@@ -68,7 +97,7 @@ export default function DashboardPage() {
     }
 
     fetchData()
-    const interval = setInterval(fetchData, 15000) // Refresh every 15s
+    const interval = setInterval(fetchData, 10000) // Refresh every 10s
     return () => clearInterval(interval)
   }, [address, publicClient])
 
@@ -78,6 +107,33 @@ export default function DashboardPage() {
       <div className="main-content">
         <Topbar />
         <div className="page-container animate-fade-in">
+          {/* AI Workspace Promotion */}
+          <a
+            href="/workspace"
+            className="card"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '16px',
+              padding: '16px 20px',
+              marginBottom: '24px',
+              background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.08), rgba(168, 85, 247, 0.08))',
+              borderColor: 'rgba(59, 130, 246, 0.2)',
+              textDecoration: 'none',
+              color: 'inherit',
+              cursor: 'pointer',
+            }}
+          >
+            <Sparkles size={24} style={{ color: '#3b82f6', flexShrink: 0 }} />
+            <div style={{ flex: 1 }}>
+              <strong style={{ fontSize: '14px' }}>Try the new AI Workspace</strong>
+              <p className="text-muted text-sm" style={{ margin: '2px 0 0' }}>
+                Chat with CrossWire AI to manage payments, invoices, compliance, and treasury — all from one place.
+              </p>
+            </div>
+            <ArrowRight size={18} style={{ color: 'var(--text-tertiary)', flexShrink: 0 }} />
+          </a>
+
           <h1 className="flex items-center gap-3">
             <LayoutGrid size={32} strokeWidth={1.5} className="text-primary" />
             Dashboard
@@ -104,7 +160,7 @@ export default function DashboardPage() {
               >
                 <Bell size={14} /> Enable Push Notifications
               </button>
-              <span className="text-xs text-muted">Stay updated on settlements, multi-sig operations, and invoices on your mobile device.</span>
+              <span className="text-xs text-muted">Stay updated on settlements, secondary approvals, and invoices on your mobile device.</span>
             </div>
           )}
 
@@ -261,7 +317,7 @@ export default function DashboardPage() {
                     description: (
                       <div style={{ textAlign: 'left', display: 'flex', flexDirection: 'column', gap: '12px', fontSize: '13px', lineHeight: '1.6' }}>
                         <p><strong>What it is:</strong> The duration required for an initiated payment to reach permanent, irrevocable settlement on-chain.</p>
-                        <p><strong>Why it matters:</strong> Legacy SWIFT takes 3 to 5 days. Arc network precompiles enable deterministic transaction settlement in under 1 second. No block confirmation depth is required by finance teams.</p>
+                        <p><strong>Why it matters:</strong> Legacy SWIFT takes 3 to 5 days. Arc network protocols enable deterministic transaction settlement in under 1 second. No block confirmation depth is required by finance teams.</p>
                         <p><strong>Verification:</strong> Governed by Arc\'s high-speed consensus, which confirms and seals blocks sequentially in sub-second intervals.</p>
                       </div>
                     ),
@@ -330,36 +386,53 @@ export default function DashboardPage() {
                 </tr>
               </thead>
               <tbody>
-                {recentWires.map((log: any, i: number) => (
-                  <tr key={i} className="animate-fade-in">
-                    <td>
-                      <span className="badge gray">#{log.args?.wireId?.toString() || '?'}</span>
-                    </td>
-                    <td className="text-mono">
-                      {log.args?.recipient
-                        ? `${log.args.recipient.slice(0, 6)}...${log.args.recipient.slice(-4)}`
-                        : '—'}
-                    </td>
-                    <td>
-                      <strong>
-                        {log.args?.amount
-                          ? `$${Number(formatUnits(log.args.amount, 6)).toLocaleString('en-US', { minimumFractionDigits: 2 })}`
+                {recentWires.map((log: any, i: number) => {
+                  const wireIdStr = log.args?.wireId?.toString() || log.id?.toString() || '?'
+                  const recipientAddr = log.args?.recipient || log.recipient
+                  const rawAmount = log.args?.amount || log.amount
+                  const transactionHash = log.transactionHash || log.txHash
+
+                  return (
+                    <tr key={i} className="animate-fade-in">
+                      <td>
+                        <span className="badge gray">#{wireIdStr}</span>
+                      </td>
+                      <td className="text-mono">
+                        {recipientAddr
+                          ? `${recipientAddr.slice(0, 6)}...${recipientAddr.slice(-4)}`
                           : '—'}
-                      </strong>
-                      <span className="text-muted text-xs ml-1">USDC</span>
-                    </td>
-                    <td>
-                      <a
-                        href={`https://testnet.arcscan.app/tx/${log.transactionHash}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="explorer-link"
-                      >
-                        {log.transactionHash?.slice(0, 10)}… ↗
-                      </a>
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                      <td>
+                        <strong>
+                          {rawAmount
+                            ? `$${Number(formatUnits(BigInt(rawAmount), 6)).toLocaleString('en-US', { minimumFractionDigits: 2 })}`
+                            : '—'}
+                        </strong>
+                        <span className="text-muted text-xs ml-1">USDC</span>
+                      </td>
+                      <td>
+                        {transactionHash ? (
+                          <a
+                            href={transactionHash.startsWith('0xmock') ? '#' : `https://testnet.arcscan.app/tx/${transactionHash}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="explorer-link"
+                            onClick={(e) => {
+                              if (transactionHash.startsWith('0xmock')) {
+                                e.preventDefault()
+                                toast('This is a simulated Sandbox Transaction.')
+                              }
+                            }}
+                          >
+                            {transactionHash.slice(0, 10)}… ↗
+                          </a>
+                        ) : (
+                          '—'
+                        )}
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           )}

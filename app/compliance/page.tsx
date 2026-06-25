@@ -1,8 +1,10 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { usePublicClient, useWalletClient, useAccount } from 'wagmi'
-import { formatUnits } from 'viem'
+import { usePublicClient, useWalletClient } from 'wagmi'
+import { useAccount } from '@/lib/use-crosswire-account'
+import { getSandboxWires, updateSandboxWireStatus } from '@/lib/sandbox-store'
+import { formatUnits, encodeFunctionData } from 'viem'
 import toast from 'react-hot-toast'
 import Link from 'next/link'
 import Sidebar from '../components/Sidebar'
@@ -56,13 +58,20 @@ export default function CompliancePage() {
   const [kycProfile, setKycProfile] = useState<any>(null)
 
   const fetchData = async () => {
+    const isSandbox = typeof window !== 'undefined' && localStorage.getItem('crosswire_sandbox') === 'true'
     try {
       // 1. Fetch wires/events
       const wiresRes = await fetch('/api/wires?limit=100')
       const wiresData = await wiresRes.json()
 
+      let wires = wiresData.wires || []
+      if (isSandbox) {
+        const sWires = getSandboxWires()
+        wires = [...sWires, ...wires]
+      }
+
       const allLogs: AuditEntry[] = []
-      for (const wire of (wiresData.wires || [])) {
+      for (const wire of wires) {
         allLogs.push({
           wireId: wire.id.toString(),
           sender: wire.sender,
@@ -122,7 +131,15 @@ export default function CompliancePage() {
       }
 
       // 3. Fetch current user KYC details
-      if (address) {
+      if (isSandbox) {
+        setKycProfile({
+          businessName: 'Acme Corp (Sandbox)',
+          ein: 'XX-XXXXXXX',
+          country: 'United States',
+          status: 'APPROVED',
+          complianceOfficer: 'Sandbox Compliance Automator'
+        })
+      } else if (address) {
         const kycRes = await fetch(`/api/compliance/kyc?wallet=${address}`)
         if (kycRes.ok) {
           setKycProfile(await kycRes.json())
@@ -139,25 +156,64 @@ export default function CompliancePage() {
     fetchData()
   }, [address])
 
+  useEffect(() => {
+    const handleSandboxChange = () => {
+      fetchData()
+    }
+    window.addEventListener('crosswire_sandbox_changed', handleSandboxChange)
+    return () => window.removeEventListener('crosswire_sandbox_changed', handleSandboxChange)
+  }, [])
+
   const truncAddr = (a: string) => a ? `${a.slice(0, 6)}...${a.slice(-4)}` : '—'
 
   const isWirePending = (wireId: string) => {
+    const isSandbox = typeof window !== 'undefined' && localStorage.getItem('crosswire_sandbox') === 'true'
+    if (isSandbox) {
+      const sWires = getSandboxWires()
+      const found = sWires.find(w => w.id.toString() === wireId)
+      return found ? found.status !== 'EXECUTED' : true
+    }
     const executed = auditLog.find(e => e.wireId === wireId && e.type === 'EXECUTED')
     return !executed
   }
 
   const handleApproveWire = async () => {
-    if (!walletClient || !address || !selectedWire) return
+    if (!selectedWire) return
+    const isSandbox = typeof window !== 'undefined' && localStorage.getItem('crosswire_sandbox') === 'true'
+
     setIsApproving(true)
-    toast.loading('Approving wire (Multi-sig)...', { id: 'approve' })
+    toast.loading('Approving wire (Secondary Authorization)...', { id: 'approve' })
+    
+    if (isSandbox) {
+      setTimeout(async () => {
+        updateSandboxWireStatus(Number(selectedWire.wireId), 'EXECUTED', address || '0x3a92d...')
+        toast.success('Wire approved and settled successfully (Simulated)!', { id: 'approve' })
+        setSelectedWire(null)
+        setIsApproving(false)
+        await fetchData()
+      }, 1200)
+      return
+    }
+
+    if (!walletClient || !address) {
+      toast.error('Connect wallet first', { id: 'approve' })
+      setIsApproving(false)
+      return
+    }
+
     try {
-      const hash = await walletClient.writeContract({
-        address: CROSSWIRE_CONTRACT_ADDRESS,
+      const approveWireData = encodeFunctionData({
         abi: crossWireRouterAbi,
         functionName: 'approveWire',
         args: [BigInt(selectedWire.wireId)],
-        account: address,
-        chain: null,
+      })
+      const hash = await walletClient.request({
+        method: 'eth_sendTransaction',
+        params: [{
+          from: address,
+          to: CROSSWIRE_CONTRACT_ADDRESS,
+          data: approveWireData,
+        }]
       })
       await publicClient!.waitForTransactionReceipt({ hash })
       toast.success('Wire approved successfully!', { id: 'approve' })
@@ -205,7 +261,7 @@ export default function CompliancePage() {
             <div>
               <h1 className="flex items-center gap-3">
                 <ShieldCheck size={32} strokeWidth={1.5} className="text-primary" />
-                Advanced Compliance Center
+                Compliance Center
               </h1>
               <p className="text-muted text-sm mt-1">
                 Real-time AML screening, OFAC/EU sanctions checker, and auditor-ready compliance logging.
@@ -261,10 +317,10 @@ export default function CompliancePage() {
               <div className="stat-value">{activeKycCount}</div>
             </div>
             <div className="stat-card">
-              <div className="stat-label">On-chain Audit Source</div>
+              <div className="stat-label">Audit Registry</div>
               <div className="stat-value" style={{ fontSize: '16px' }}>
                 <a href={getExplorerAddressUrl(CROSSWIRE_CONTRACT_ADDRESS)} target="_blank" rel="noopener noreferrer" className="explorer-link" style={{ fontSize: '14px' }}>
-                  Arcscan ↗
+                  Audit Explorer ↗
                 </a>
               </div>
             </div>
@@ -275,11 +331,11 @@ export default function CompliancePage() {
             {/* Left: Audit event log */}
             <div className="card">
               <div className="card-header">
-                <h2>Immutable Transfer Event Logs</h2>
+                <h2>Immutable Transfer Logs</h2>
               </div>
               <div className="card-body" style={{ padding: 0 }}>
                 {loading ? (
-                  <p className="text-center py-8 text-secondary text-xs">Loading on-chain events...</p>
+                  <p className="text-center py-8 text-secondary text-xs">Loading transfer logs...</p>
                 ) : auditLog.length === 0 ? (
                   <p className="text-center py-8 text-secondary text-xs">No transfer events recorded.</p>
                 ) : (
@@ -290,13 +346,13 @@ export default function CompliancePage() {
                         onClick={() => setSelectedWire(entry)}
                         style={{ 
                           padding: '12px 16px', 
-                          borderBottom: '1px solid rgba(255, 255, 255, 0.05)',
+                          borderBottom: '1px solid var(--border)',
                           cursor: 'pointer',
                           display: 'flex',
                           justifyContent: 'between',
                           alignItems: 'center'
                         }}
-                        className="hover:bg-slate-900"
+                        className="hover:bg-[var(--bg-secondary)]"
                       >
                         <div style={{ flex: 1 }}>
                           <div className="flex items-center gap-2">
@@ -344,11 +400,12 @@ export default function CompliancePage() {
                           key={log.id} 
                           style={{ 
                             padding: '12px 16px', 
-                            borderBottom: '1px solid rgba(255, 255, 255, 0.05)',
+                            borderBottom: '1px solid var(--border)',
                             display: 'flex',
                             justifyContent: 'between',
                             alignItems: 'center'
                           }}
+                          className="hover:bg-[var(--bg-secondary)]"
                         >
                           <div style={{ flex: 1 }}>
                             <div className="flex items-center gap-2">
@@ -402,7 +459,7 @@ export default function CompliancePage() {
                   <div><strong>{selectedWire.amount ? `$${Number(selectedWire.amount).toLocaleString()} USDC` : '—'}</strong></div>
                 </div>
                 <div>
-                  <div className="text-xs text-muted mb-1">On-Chain Tx Proof</div>
+                  <div className="text-xs text-muted mb-1">Transaction Audit Proof</div>
                   <a href={getExplorerTxUrl(selectedWire.txHash)} target="_blank" rel="noopener noreferrer" className="explorer-link text-mono text-xs break-all">
                     {selectedWire.txHash} ↗
                   </a>
@@ -413,7 +470,7 @@ export default function CompliancePage() {
                     <div className="callout" style={{ marginBottom: '16px', borderColor: 'var(--warning)', background: 'var(--warning-bg)' }}>
                       <span className="callout-icon text-warning"><AlertTriangle size={20} strokeWidth={1.5} /></span>
                       <div>
-                        <strong className="text-warning">Pending Multi-Sig signatory confirmation</strong>
+                        <strong className="text-warning">Pending secondary corporate authorization</strong>
                       </div>
                     </div>
                     <button 
@@ -422,7 +479,7 @@ export default function CompliancePage() {
                       onClick={handleApproveWire}
                       disabled={isApproving}
                     >
-                      {isApproving ? 'Approving...' : `Approve Wire #${selectedWire.wireId}`}
+                      {isApproving ? 'Approving...' : `Authorize Wire #${selectedWire.wireId}`}
                     </button>
                   </div>
                 )}

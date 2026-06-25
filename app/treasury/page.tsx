@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useAccount, usePublicClient, useWalletClient, useSwitchChain } from 'wagmi'
-import { formatUnits, parseUnits, createPublicClient, http, parseEventLogs, keccak256 } from 'viem'
+import { formatUnits, parseUnits, createPublicClient, http, parseEventLogs, keccak256, encodeFunctionData } from 'viem'
 import toast from 'react-hot-toast'
 import Sidebar from '../components/Sidebar'
 import Topbar from '../components/Topbar'
@@ -407,7 +407,7 @@ export default function TreasuryPage() {
       updateModal({
         type: 'error',
         title: 'StableFX Swap Failed',
-        description: err?.message || 'Transaction was reverted by the EVM.',
+        description: err?.message || 'Transaction was reverted by the network.',
         errorDetails: err?.stack || 'Error Code: StableFX_REVERTED_INSUFFICIENT_LIQUIDITY',
       })
     } finally {
@@ -468,12 +468,18 @@ export default function TreasuryPage() {
               title: `Sweeping ${item.name} (${i + 1}/${sweeps.length})`,
               description: `[1/4] Approving TokenMessenger to burn $${item.bal} USDC...`
             })
-            const appHash = await walletClient!.writeContract({
-              address: chainConfig.usdcAddress,
+            const approveData = encodeFunctionData({
               abi: erc20Abi,
               functionName: 'approve',
               args: [chainConfig.tokenMessenger, rawAmount],
-              account: address!,
+            })
+            const appHash = await walletClient!.request({
+              method: 'eth_sendTransaction',
+              params: [{
+                from: address,
+                to: chainConfig.usdcAddress,
+                data: approveData,
+              }]
             })
 
             const sourcePublicClient = createPublicClient({ transport: http(chainConfig.rpcUrl) })
@@ -487,8 +493,7 @@ export default function TreasuryPage() {
             })
             const recipientBytes = addressToBytes32(address!)
             const emptyBytes32 = addressToBytes32('0x0000000000000000000000000000000000000000')
-            const burnHash = await walletClient!.writeContract({
-              address: chainConfig.tokenMessenger,
+            const depositForBurnData = encodeFunctionData({
               abi: tokenMessengerAbi,
               functionName: 'depositForBurn',
               args: [
@@ -500,7 +505,14 @@ export default function TreasuryPage() {
                 0n,
                 2000
               ],
-              account: address!,
+            })
+            const burnHash = await walletClient!.request({
+              method: 'eth_sendTransaction',
+              params: [{
+                from: address,
+                to: chainConfig.tokenMessenger,
+                data: depositForBurnData,
+              }]
             })
 
             const burnReceipt = await sourcePublicClient.waitForTransactionReceipt({ hash: burnHash })
@@ -548,12 +560,18 @@ export default function TreasuryPage() {
               description: `[4/4] Minting swept USDC on Arc Testnet...`
             })
 
-            const claimHash = await walletClient!.writeContract({
-              address: arcConfig.messageTransmitter,
+            const receiveMessageData = encodeFunctionData({
               abi: messageTransmitterAbi,
               functionName: 'receiveMessage',
               args: [messageBytes, attestationSig as `0x${string}`],
-              account: address!,
+            })
+            const claimHash = await walletClient!.request({
+              method: 'eth_sendTransaction',
+              params: [{
+                from: address,
+                to: arcConfig.messageTransmitter,
+                data: receiveMessageData,
+              }]
             })
 
             const arcPublicClient = createPublicClient({ transport: http(arcConfig.rpcUrl) })
@@ -664,7 +682,7 @@ export default function TreasuryPage() {
                       <div style={{ textAlign: 'left', display: 'flex', flexDirection: 'column', gap: '12px', fontSize: '13px', lineHeight: '1.6' }}>
                         <p><strong>What it is:</strong> The institutional-grade spot rate for exchange between Circle\'s USD Coin (USDC) and Euro Coin (EURC) on Arc Testnet.</p>
                         <p><strong>Why it matters:</strong> Essential for B2B contractor payouts or supplier invoices settling in Euros while maintaining the main treasury float in US Dollars.</p>
-                        <p><strong>Slippage & Fees:</strong> Because trades route through high-liquidity precompiled swap routes on Arc, slippage is nearly zero and transaction costs are completely sponsored.</p>
+                        <p><strong>Slippage & Fees:</strong> Because trades route through high-liquidity swap pathways, slippage is nearly zero and transaction costs are completely sponsored.</p>
                       </div>
                     ),
                     confirmText: 'Got it',
@@ -708,7 +726,7 @@ export default function TreasuryPage() {
               <div className="stat-value" style={{ fontSize: '24px', color: 'var(--success)' }}>
                 0.00
               </div>
-              <div className="stat-label mt-2 text-muted">Paid in USDC precompiles</div>
+              <div className="stat-label mt-2 text-muted">Settled in USDC</div>
             </div>
           </div>
 
@@ -949,103 +967,111 @@ export default function TreasuryPage() {
               </div>
 
               {/* Arc Gas Sponsorship Card */}
+              {/* Arc Gas Sponsorship Card */}
               <div className="card" style={{ marginTop: '24px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                  <h3 style={{ margin: 0, fontSize: '18px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <TrendingUp className="text-success" size={20} strokeWidth={1.5} />
-                    Arc Gas Sponsorship
-                  </h3>
+                <div className="card-header">
+                  <h2 style={{ margin: 0, fontSize: '15px', display: 'flex', alignItems: 'center', gap: '8px', textTransform: 'none', fontWeight: 600 }}>
+                    <TrendingUp className="text-success" size={18} strokeWidth={1.5} />
+                    Transaction Fee Sponsorship
+                  </h2>
                   <span className="badge success">Active</span>
                 </div>
                 
-                <p className="text-muted text-xs" style={{ marginBottom: '20px' }}>
-                  CrossWire sponsors payroll and treasury gas precompiles directly via the Arc network gas station. Adjust corporate sponsorship settings below.
-                </p>
+                <div className="card-body" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                  <p style={{ margin: 0, fontSize: '13px', lineHeight: '1.5', color: 'var(--text-secondary)', textTransform: 'none' }}>
+                    CrossWire sponsors payroll and treasury transaction fees directly via corporate fee sponsorship routing on Arc. Adjust corporate sponsorship settings below.
+                  </p>
 
-                {/* Sponsorship checkboxes */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '24px' }}>
-                  <label className="flex items-center gap-3 text-sm cursor-pointer" style={{ userSelect: 'none' }}>
-                    <input 
-                      type="checkbox" 
-                      checked={sponsorPayroll} 
-                      onChange={(e) => {
-                        setSponsorPayroll(e.target.checked)
-                        toast.success(`Gas Sponsorship for Payroll ${e.target.checked ? 'Enabled' : 'Disabled'}`)
-                      }}
-                      style={{ width: '16px', height: '16px', accentColor: 'var(--success)' }}
-                    />
-                    <div>
-                      <strong className="block text-xs" style={{ display: 'block', fontSize: '13px' }}>Sponsor Payroll Wires</strong>
-                      <p className="text-xs text-muted" style={{ margin: 0, fontSize: '11px', lineHeight: '1.4' }}>Sponsors employee & contractor salary distributions [Purpose Code: 1]</p>
-                    </div>
-                  </label>
+                  {/* Sponsorship checkboxes */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                    <label className="flex items-start gap-3 cursor-pointer" style={{ userSelect: 'none' }}>
+                      <input 
+                        type="checkbox" 
+                        checked={sponsorPayroll} 
+                        onChange={(e) => {
+                          setSponsorPayroll(e.target.checked)
+                          toast.success(`Gas Sponsorship for Payroll ${e.target.checked ? 'Enabled' : 'Disabled'}`)
+                        }}
+                        className="checkbox-custom"
+                        style={{ marginTop: '3px' }}
+                      />
+                      <div>
+                        <strong style={{ display: 'block', fontSize: '13.5px', textTransform: 'none', fontWeight: 600, color: 'var(--text-primary)' }}>Sponsor Payroll Wires</strong>
+                        <p style={{ margin: '2px 0 0 0', fontSize: '12px', lineHeight: '1.4', textTransform: 'none', color: 'var(--text-secondary)' }}>Sponsors employee & contractor salary distributions [Purpose Code: 1]</p>
+                      </div>
+                    </label>
 
-                  <label className="flex items-center gap-3 text-sm cursor-pointer" style={{ userSelect: 'none' }}>
-                    <input 
-                      type="checkbox" 
-                      checked={sponsorFX} 
-                      onChange={(e) => {
-                        setSponsorFX(e.target.checked)
-                        toast.success(`Gas Sponsorship for StableFX swaps ${e.target.checked ? 'Enabled' : 'Disabled'}`)
-                      }}
-                      style={{ width: '16px', height: '16px', accentColor: 'var(--success)' }}
-                    />
-                    <div>
-                      <strong className="block text-xs" style={{ display: 'block', fontSize: '13px' }}>Sponsor Currency Swaps</strong>
-                      <p className="text-xs text-muted" style={{ margin: 0, fontSize: '11px', lineHeight: '1.4' }}>Sponsors EURC/USDC FX spot exchange conversions</p>
-                    </div>
-                  </label>
+                    <label className="flex items-start gap-3 cursor-pointer" style={{ userSelect: 'none' }}>
+                      <input 
+                        type="checkbox" 
+                        checked={sponsorFX} 
+                        onChange={(e) => {
+                          setSponsorFX(e.target.checked)
+                          toast.success(`Gas Sponsorship for StableFX swaps ${e.target.checked ? 'Enabled' : 'Disabled'}`)
+                        }}
+                        className="checkbox-custom"
+                        style={{ marginTop: '3px' }}
+                      />
+                      <div>
+                        <strong style={{ display: 'block', fontSize: '13.5px', textTransform: 'none', fontWeight: 600, color: 'var(--text-primary)' }}>Sponsor Currency Swaps</strong>
+                        <p style={{ margin: '2px 0 0 0', fontSize: '12px', lineHeight: '1.4', textTransform: 'none', color: 'var(--text-secondary)' }}>Sponsors EURC/USDC FX spot exchange conversions</p>
+                      </div>
+                    </label>
 
-                  <label className="flex items-center gap-3 text-sm cursor-pointer" style={{ userSelect: 'none' }}>
-                    <input 
-                      type="checkbox" 
-                      checked={sponsorBridge} 
-                      onChange={(e) => {
-                        setSponsorBridge(e.target.checked)
-                        toast.success(`Gas Sponsorship for CCTP bridge ${e.target.checked ? 'Enabled' : 'Disabled'}`)
-                      }}
-                      style={{ width: '16px', height: '16px', accentColor: 'var(--success)' }}
-                    />
-                    <div>
-                      <strong className="block text-xs" style={{ display: 'block', fontSize: '13px' }}>Sponsor CCTP Inbound Bridge</strong>
-                      <p className="text-xs text-muted" style={{ margin: 0, fontSize: '11px', lineHeight: '1.4' }}>Sponsors inbound USDC bridge triggers from external L1/L2 networks</p>
-                    </div>
-                  </label>
-                </div>
-
-                <div className="sidebar-divider" style={{ margin: '16px 0', borderTop: '1px solid var(--border)' }} />
-
-                {/* Savings Analytics */}
-                <h4 style={{ margin: '0 0 12px', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em' }} className="text-muted">
-                  Gas Savings Ledger
-                </h4>
-                
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '16px' }}>
-                  <div className="flex justify-between text-xs" style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px' }}>
-                    <span className="text-muted">SWIFT Wire Processing Equivalent:</span>
-                    <span className="text-mono font-semibold">${(gasSavings * 12.0).toFixed(2)} USDC</span>
+                    <label className="flex items-start gap-3 cursor-pointer" style={{ userSelect: 'none' }}>
+                      <input 
+                        type="checkbox" 
+                        checked={sponsorBridge} 
+                        onChange={(e) => {
+                          setSponsorBridge(e.target.checked)
+                          toast.success(`Gas Sponsorship for CCTP bridge ${e.target.checked ? 'Enabled' : 'Disabled'}`)
+                        }}
+                        className="checkbox-custom"
+                        style={{ marginTop: '3px' }}
+                      />
+                      <div>
+                        <strong style={{ display: 'block', fontSize: '13.5px', textTransform: 'none', fontWeight: 600, color: 'var(--text-primary)' }}>Sponsor CCTP Inbound Bridge</strong>
+                        <p style={{ margin: '2px 0 0 0', fontSize: '12px', lineHeight: '1.4', textTransform: 'none', color: 'var(--text-secondary)' }}>Sponsors inbound USDC bridge triggers from external L1/L2 networks</p>
+                      </div>
+                    </label>
                   </div>
-                  <div className="flex justify-between text-xs" style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px' }}>
-                    <span className="text-muted">Alternative L1 Gas Estimate:</span>
-                    <span className="text-mono font-semibold">${(gasSavings * 4.5).toFixed(2)} USDC</span>
-                  </div>
-                  <div className="flex justify-between text-xs" style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px' }}>
-                    <span className="text-muted">Arc Gas Sponsorship Savings:</span>
-                    <span className="text-success text-mono font-semibold">${gasSavings.toFixed(2)} USDC</span>
-                  </div>
-                </div>
 
-                {/* Real-time daily limit indicator */}
-                <div style={{ width: '100%', background: 'var(--border)', height: '6px', borderRadius: '3px', overflow: 'hidden' }}>
-                  <div style={{ 
-                    width: `${Math.min(100, (dailySpent / 100) * 100)}%`, 
-                    background: dailySpent >= 100 ? 'var(--error)' : dailySpent >= 80 ? 'var(--warning)' : 'var(--success)', 
-                    height: '100%' 
-                  }}></div>
-                </div>
-                <div className="flex justify-between text-muted mt-2" style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px' }}>
-                  <span>Daily Sponsored Used: ${dailySpent.toFixed(2)}</span>
-                  <span>Limit: $100.00 / day</span>
+                  <div style={{ height: '1px', background: 'var(--border)', margin: '4px 0' }} />
+
+                  {/* Savings Analytics */}
+                  <div>
+                    <h4 style={{ margin: '0 0 12px', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }} className="text-muted">
+                      Gas Savings Ledger
+                    </h4>
+                    
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '16px' }}>
+                      <div className="flex justify-between text-xs" style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', textTransform: 'none' }}>
+                        <span className="text-muted" style={{ textTransform: 'none' }}>SWIFT Wire Processing Equivalent:</span>
+                        <span className="text-mono font-semibold" style={{ textTransform: 'none' }}>${(gasSavings * 12.0).toFixed(2)} USDC</span>
+                      </div>
+                      <div className="flex justify-between text-xs" style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', textTransform: 'none' }}>
+                        <span className="text-muted" style={{ textTransform: 'none' }}>Alternative L1 Gas Estimate:</span>
+                        <span className="text-mono font-semibold" style={{ textTransform: 'none' }}>${(gasSavings * 4.5).toFixed(2)} USDC</span>
+                      </div>
+                      <div className="flex justify-between text-xs" style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', textTransform: 'none' }}>
+                        <span className="text-muted" style={{ textTransform: 'none' }}>Arc Gas Sponsorship Savings:</span>
+                        <span className="text-success text-mono font-semibold" style={{ textTransform: 'none' }}>${gasSavings.toFixed(2)} USDC</span>
+                      </div>
+                    </div>
+
+                    {/* Real-time daily limit indicator */}
+                    <div style={{ width: '100%', background: 'var(--border)', height: '6px', borderRadius: '3px', overflow: 'hidden' }}>
+                      <div style={{ 
+                        width: `${Math.min(100, (dailySpent / 100) * 100)}%`, 
+                        background: dailySpent >= 100 ? 'var(--danger)' : dailySpent >= 80 ? 'var(--warning)' : 'var(--success)', 
+                        height: '100%' 
+                      }}></div>
+                    </div>
+                    <div className="flex justify-between text-muted mt-2" style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', textTransform: 'none' }}>
+                      <span style={{ textTransform: 'none' }}>Daily Sponsored Used: ${dailySpent.toFixed(2)}</span>
+                      <span style={{ textTransform: 'none' }}>Limit: $100.00 / day</span>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>

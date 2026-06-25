@@ -2,13 +2,15 @@
 
 import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { useAccount, useWalletClient, usePublicClient } from 'wagmi'
+import { useWalletClient, usePublicClient } from 'wagmi'
+import { useAccount } from '@/lib/use-crosswire-account'
+import { getSandboxInvoices, updateSandboxInvoiceStatus, addSandboxWire } from '@/lib/sandbox-store'
 import { ConnectButton } from '@rainbow-me/rainbowkit'
 import toast from 'react-hot-toast'
 import { generateQRCodeUrl } from '@/lib/qrcode'
 import { erc20Abi, crossWireRouterAbi } from '@/lib/contracts'
 import { USDC_ADDRESS, CROSSWIRE_CONTRACT_ADDRESS, getExplorerTxUrl } from '@/lib/arc-config'
-import { parseUnits, keccak256, encodePacked } from 'viem'
+import { parseUnits, keccak256, encodePacked, encodeFunctionData } from 'viem'
 import { 
   FileText, 
   Wallet, 
@@ -40,6 +42,17 @@ export default function PublicInvoicePaymentPage() {
 
   // Fetch invoice details
   const fetchInvoice = async () => {
+    const isSandbox = typeof window !== 'undefined' && localStorage.getItem('crosswire_sandbox') === 'true'
+    if (isSandbox) {
+      const sInvoices = getSandboxInvoices()
+      const found = sInvoices.find(i => i.slug === slug)
+      if (found) {
+        setInvoice(found)
+        setLoading(false)
+        return
+      }
+    }
+
     try {
       const res = await fetch(`/api/invoices/${slug}`)
       if (res.ok) {
@@ -62,6 +75,14 @@ export default function PublicInvoicePaymentPage() {
     }
   }, [slug])
 
+  useEffect(() => {
+    const handleSandboxChange = () => {
+      fetchInvoice()
+    }
+    window.addEventListener('crosswire_sandbox_changed', handleSandboxChange)
+    return () => window.removeEventListener('crosswire_sandbox_changed', handleSandboxChange)
+  }, [slug])
+
   // Handle print
   const handlePrint = () => {
     window.print()
@@ -69,7 +90,9 @@ export default function PublicInvoicePaymentPage() {
 
   // Handle Payment Execution
   const handlePay = async () => {
-    if (!isConnected || !address || !walletClient || !publicClient) {
+    const isSandbox = typeof window !== 'undefined' && localStorage.getItem('crosswire_sandbox') === 'true'
+
+    if (!isSandbox && (!isConnected || !address || !walletClient || !publicClient)) {
       toast.error('Please connect your wallet first')
       return
     }
@@ -79,34 +102,75 @@ export default function PublicInvoicePaymentPage() {
       return
     }
 
-    if (invoice.payerAddr && invoice.payerAddr.toLowerCase() !== address.toLowerCase()) {
+    const currentPayerAddr = address || '0x3a92dB4F4B84F01A18d96b04C63E63e800000000'
+    if (invoice.payerAddr && invoice.payerAddr.toLowerCase() !== currentPayerAddr.toLowerCase()) {
       toast.error(`Access Denied: This invoice is restricted to payer address ${invoice.payerAddr}`)
       return
     }
 
     setPaying(true)
+
+    if (isSandbox) {
+      toast.loading('Processing Sandbox USDC payment wires...', { id: 'pay-toast' })
+      setTimeout(() => {
+        const mWireId = Math.floor(Math.random() * 89999) + 10000
+        const mockTx = '0xmock_settle_invoice_' + Math.random().toString(16).slice(2, 10)
+
+        // 1. Update sandbox invoice status
+        updateSandboxInvoiceStatus(invoice.id, 'PAID', currentPayerAddr)
+
+        addSandboxWire({
+          sender: currentPayerAddr,
+          recipient: invoice.payeeAddr,
+          amount: parseUnits(invoice.amount, 6).toString(),
+          refHash: mockTx,
+          txHash: mockTx,
+          status: 'EXECUTED',
+          timestamp: new Date().toISOString(),
+          memo: `Invoice settlement: ${invoice.memo || 'Untitled invoice'}`,
+          purposeCode: 2,
+          events: [{
+            eventType: 'Executed',
+            actor: currentPayerAddr,
+            txHash: mockTx,
+            timestamp: new Date().toISOString()
+          }]
+        })
+
+        toast.success('Invoice settled via sponsored Sandbox USDC wire successfully!', { id: 'pay-toast' })
+        setPaying(false)
+        fetchInvoice()
+      }, 1500)
+      return
+    }
+
     const amountParsed = parseUnits(invoice.amount, 6) // USDC uses 6 decimals
 
     try {
       // 1. Approve USDC Spending allowance
-      const currentAllowance = await publicClient.readContract({
+      const currentAllowance = await publicClient!.readContract({
         address: USDC_ADDRESS,
         abi: erc20Abi,
         functionName: 'allowance',
-        args: [address, CROSSWIRE_CONTRACT_ADDRESS],
+        args: [address!, CROSSWIRE_CONTRACT_ADDRESS],
       }) as bigint
 
       if (currentAllowance < amountParsed) {
         toast.loading('Approving USDC allowance...', { id: 'pay-toast' })
-        const approveHash = await walletClient.writeContract({
-          address: USDC_ADDRESS,
+        const approveData = encodeFunctionData({
           abi: erc20Abi,
           functionName: 'approve',
           args: [CROSSWIRE_CONTRACT_ADDRESS, amountParsed],
-          chain: null,
-          account: address,
         })
-        await publicClient.waitForTransactionReceipt({ hash: approveHash })
+        const approveHash = await walletClient!.request({
+          method: 'eth_sendTransaction',
+          params: [{
+            from: address,
+            to: USDC_ADDRESS,
+            data: approveData,
+          }]
+        })
+        await publicClient!.waitForTransactionReceipt({ hash: approveHash })
       }
 
       // 2. Submit payment to CrossWireRouterV2 contract
@@ -114,12 +178,11 @@ export default function PublicInvoicePaymentPage() {
       const reference = keccak256(
         encodePacked(
           ['address', 'address', 'uint256', 'string'],
-          [address, invoice.payeeAddr as `0x${string}`, amountParsed, slug]
+          [address!, invoice.payeeAddr as `0x${string}`, amountParsed, slug]
         )
       )
 
-      const txHash = await walletClient.writeContract({
-        address: CROSSWIRE_CONTRACT_ADDRESS,
+      const initiateWireData = encodeFunctionData({
         abi: crossWireRouterAbi,
         functionName: 'initiateWire',
         args: [
@@ -129,11 +192,17 @@ export default function PublicInvoicePaymentPage() {
           2, // purposeCode 2: Vendor invoice settlement
           `Invoice: ${invoice.memo || slug}`
         ],
-        chain: null,
-        account: address,
+      })
+      const txHash = await walletClient!.request({
+        method: 'eth_sendTransaction',
+        params: [{
+          from: address,
+          to: CROSSWIRE_CONTRACT_ADDRESS,
+          data: initiateWireData,
+        }]
       })
 
-      const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash })
+      const receipt = await publicClient!.waitForTransactionReceipt({ hash: txHash })
       let wireId = 0
 
       // Read wireId from logs if possible
@@ -168,7 +237,7 @@ export default function PublicInvoicePaymentPage() {
       }
     } catch (err: any) {
       console.error(err)
-      toast.error(`Payment failed: ${err.message || 'EVM execution failed'}`, { id: 'pay-toast' })
+      toast.error(`Payment failed: ${err.message || 'Transaction execution failed'}`, { id: 'pay-toast' })
     } finally {
       setPaying(false)
     }

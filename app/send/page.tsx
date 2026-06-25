@@ -1,8 +1,10 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useAccount, usePublicClient, useWalletClient } from 'wagmi'
-import { parseUnits, formatUnits, encodePacked, keccak256 } from 'viem'
+import { usePublicClient, useWalletClient } from 'wagmi'
+import { useAccount } from '@/lib/use-crosswire-account'
+import { addSandboxWire } from '@/lib/sandbox-store'
+import { parseUnits, formatUnits, encodePacked, keccak256, encodeFunctionData } from 'viem'
 import toast from 'react-hot-toast'
 import Sidebar from '../components/Sidebar'
 import Topbar from '../components/Topbar'
@@ -48,7 +50,39 @@ export default function SendPage() {
   // Contact State Variables
   const [saveRecipient, setSaveRecipient] = useState(false)
   const [saveName, setSaveName] = useState('')
+  const [saveLabel, setSaveLabel] = useState('Vendor')
   const [recentRecipients, setRecentRecipients] = useState<any[]>([])
+  const [allContacts, setAllContacts] = useState<any[]>([])
+  const [matchedContact, setMatchedContact] = useState<any>(null)
+
+  // Fetch all contacts to match recipient addresses
+  useEffect(() => {
+    if (!address) {
+      setAllContacts([])
+      return
+    }
+    const fetchAllContacts = async () => {
+      try {
+        const res = await fetch(`/api/contacts?ownerAddr=${address}`)
+        if (res.ok) {
+          const data = await res.json()
+          setAllContacts(data)
+        }
+      } catch (err) {
+        console.error('Error fetching all contacts:', err)
+      }
+    }
+    fetchAllContacts()
+  }, [address, step])
+
+  useEffect(() => {
+    if (!recipient) {
+      setMatchedContact(null)
+      return
+    }
+    const found = allContacts.find(c => c.address.toLowerCase() === recipient.toLowerCase())
+    setMatchedContact(found || null)
+  }, [recipient, allContacts])
 
   // Fetch recent recipients
   useEffect(() => {
@@ -86,6 +120,17 @@ export default function SendPage() {
 
   const fetchGatewayBalance = async () => {
     if (!address) return
+    const isSandbox = typeof window !== 'undefined' && localStorage.getItem('crosswire_sandbox') === 'true'
+    if (isSandbox) {
+      const sandboxBal = localStorage.getItem('crosswire_sandbox_gateway_balance')
+      if (sandboxBal) {
+        setGatewayBalance(parseFloat(sandboxBal))
+      } else {
+        localStorage.setItem('crosswire_sandbox_gateway_balance', '500.000000')
+        setGatewayBalance(500.0)
+      }
+      return
+    }
     try {
       const res = await fetch(`/api/gateway/balance?userAddress=${address}`)
       if (res.ok) {
@@ -100,6 +145,14 @@ export default function SendPage() {
   // Fetch Gateway balance on mount / address change
   useEffect(() => {
     fetchGatewayBalance()
+  }, [address])
+
+  useEffect(() => {
+    const handleSandboxChange = () => {
+      fetchGatewayBalance()
+    }
+    window.addEventListener('crosswire_sandbox_changed', handleSandboxChange)
+    return () => window.removeEventListener('crosswire_sandbox_changed', handleSandboxChange)
   }, [address])
 
   // Auto-detect micro mode for < $10 transfers
@@ -133,7 +186,8 @@ export default function SendPage() {
   const { showModal, updateModal } = useModal()
   
   const handleGatewayDeposit = async () => {
-    if (!walletClient || !address || !publicClient) {
+    const isSandbox = typeof window !== 'undefined' && localStorage.getItem('crosswire_sandbox') === 'true'
+    if (!isSandbox && (!walletClient || !address || !publicClient)) {
       toast.error('Connect your wallet first')
       return
     }
@@ -151,16 +205,49 @@ export default function SendPage() {
       description: 'Sending USDC transaction to the Circle Gateway contract on Arc Testnet...'
     })
 
+    if (isSandbox) {
+      setTimeout(async () => {
+        const txHash = '0xmockdeposit' + Math.random().toString(16).substring(2, 10)
+        updateModal({
+          title: 'Verifying Gateway Deposit',
+          description: 'Waiting for blockchain settlement to update your Gateway balance...',
+          txStatus: 'confirming',
+          txHash
+        })
+        await new Promise(r => setTimeout(r, 1200))
+        const newBalance = gatewayBalance + amtNum
+        setGatewayBalance(newBalance)
+        localStorage.setItem('crosswire_sandbox_gateway_balance', newBalance.toString())
+        
+        toast.success(`Successfully deposited $${amtNum.toFixed(2)} USDC to Gateway (Simulated)!`)
+        setDepositAmount('')
+        updateModal({
+          type: 'success',
+          title: 'Gateway Balance Funded!',
+          description: `Successfully deposited $${amtNum.toFixed(2)} USDC to your off-chain Gateway balance.`,
+          confirmText: 'Done',
+          onConfirm: () => { resetForm() }
+        })
+        setDepositing(false)
+      }, 1000)
+      return
+    }
+
     try {
       const amountParsed = parseUnits(depositAmount, USDC_DECIMALS)
       
-      const txHash = await walletClient.writeContract({
-        address: USDC_ADDRESS,
+      const data = encodeFunctionData({
         abi: erc20Abi,
         functionName: 'transfer',
         args: [CROSSWIRE_CONTRACT_ADDRESS as `0x${string}`, amountParsed],
-        chain: null,
-        account: address!,
+      })
+      const txHash = await walletClient!.request({
+        method: 'eth_sendTransaction',
+        params: [{
+          from: address,
+          to: USDC_ADDRESS,
+          data,
+        }]
       })
 
       updateModal({
@@ -170,7 +257,7 @@ export default function SendPage() {
         txHash
       })
 
-      await publicClient.waitForTransactionReceipt({ hash: txHash })
+      await publicClient!.waitForTransactionReceipt({ hash: txHash })
 
       const res = await fetch('/api/gateway/deposit', {
         method: 'POST',
@@ -202,8 +289,8 @@ export default function SendPage() {
       showModal({
         type: 'error',
         title: 'Gateway Deposit Failed',
-        description: err?.shortMessage || 'The transaction request was rejected or reverted.',
-        errorDetails: err?.message || 'EVM revert.'
+        description: err?.shortMessage || 'The transaction request was rejected or reverted by the settlement network.',
+        errorDetails: err?.message || 'Transaction processing error.'
       })
     } finally {
       setDepositing(false)
@@ -211,6 +298,8 @@ export default function SendPage() {
   }
 
   const proceedExecution = async (amountParsed: bigint) => {
+    const isSandbox = typeof window !== 'undefined' && localStorage.getItem('crosswire_sandbox') === 'true'
+
     if (isMicroMode) {
       setStep('executing')
       showModal({
@@ -218,6 +307,61 @@ export default function SendPage() {
         title: 'Executing Gateway Nanopayment',
         description: 'Routing micropayment gaslessly off-chain via Circle Gateway...'
       })
+
+      if (isSandbox) {
+        setTimeout(async () => {
+          const fakeTxHash = '0xmocknanopay' + Math.random().toString(16).substring(2, 10)
+          const fakeWireId = Math.floor(Math.random() * 100000 + 10000).toString()
+          
+          // Deduct simulated balance
+          const amtNum = parseFloat(amount)
+          const newBalance = Math.max(0, gatewayBalance - amtNum)
+          setGatewayBalance(newBalance)
+          localStorage.setItem('crosswire_sandbox_gateway_balance', newBalance.toString())
+
+          // Add sandbox wire
+          addSandboxWire({
+            sender: address!,
+            recipient,
+            amount: amountParsed.toString(),
+            refHash: '0xmockref' + Math.random().toString(16).substring(2, 10),
+            status: 'EXECUTED',
+            memo: memo || 'CrossWire Nanopayment',
+            timestamp: new Date().toISOString(),
+            txHash: fakeTxHash,
+            purposeCode,
+            events: [
+              {
+                eventType: 'Executed',
+                actor: address!,
+                txHash: fakeTxHash,
+                timestamp: new Date().toISOString()
+              }
+            ]
+          })
+
+          setTxHash(fakeTxHash)
+          setWireId(fakeWireId)
+          setStep('success')
+
+          updateModal({
+            type: 'success',
+            title: 'Nanopayment Settled!',
+            description: (
+              <div style={{ textAlign: 'left', display: 'flex', flexDirection: 'column', gap: '12px', fontSize: '13px', lineHeight: '1.6' }}>
+                <p>Successfully processed <strong>{amount} USDC</strong> to <strong>{recipient.slice(0, 6)}...{recipient.slice(-4)}</strong> off-chain gaslessly (Simulated).</p>
+                <div className="callout" style={{ borderColor: 'var(--success)', background: 'var(--success-bg)', margin: 0 }}>
+                  <strong className="text-success font-semibold">Circle Gateway Settled</strong>
+                  <p className="text-success text-xs mt-1">This micropayment was instantly settled off-chain and queued for batch on-chain settlement.</p>
+                </div>
+              </div>
+            ),
+            confirmText: 'Done',
+            onConfirm: () => { resetForm() }
+          })
+        }, 1200)
+        return
+      }
 
       try {
         let signature = '0x-micro-mock-signature'
@@ -282,10 +426,108 @@ export default function SendPage() {
           type: 'error',
           title: 'Nanopayment Execution Failed',
           description: err?.message || 'Gateway transaction could not be processed.',
-          errorDetails: err?.message || 'EVM revert.'
+          errorDetails: err?.message || 'Transaction processing error.'
         })
         return
       }
+    }
+
+    if (isSandbox) {
+      setStep('approve')
+      showModal({
+        type: 'loading',
+        title: 'Approving USDC spending (Simulated)',
+        description: 'Bypassing corporate ledger constraints for Sandbox preview...'
+      })
+      await new Promise(r => setTimeout(r, 1000))
+
+      setStep('confirm')
+      showModal({
+        type: 'loading',
+        title: 'Preparing Wire Ledger (Simulated)',
+        description: 'Generating SWIFT-compliant ISO 20022 reference hash and encoding payload...'
+      })
+      await new Promise(r => setTimeout(r, 800))
+
+      setStep('executing')
+      showModal({
+        type: 'tx-status',
+        title: 'Broadcasting Settlement (Simulated)',
+        description: 'Submitting payment payload. Sub-second finality active.',
+        txStatus: 'pending'
+      })
+      await new Promise(r => setTimeout(r, 800))
+
+      const fakeTxHash = '0xmockwire' + Math.random().toString(16).substring(2, 10)
+      const fakeWireId = Math.floor(Math.random() * 100000 + 10000).toString()
+      const isOverLimit = parseFloat(amount) >= 10000
+
+      // Add sandbox wire
+      const newSandboxWire = addSandboxWire({
+        sender: address!,
+        recipient,
+        amount: amountParsed.toString(),
+        refHash: '0xmockref' + Math.random().toString(16).substring(2, 10),
+        status: isOverLimit ? 'INITIATED' : 'EXECUTED',
+        memo: memo || 'CrossWire Transfer',
+        timestamp: new Date().toISOString(),
+        txHash: fakeTxHash,
+        purposeCode,
+        events: [
+          {
+            eventType: 'Initiated',
+            actor: address!,
+            txHash: fakeTxHash,
+            timestamp: new Date().toISOString()
+          }
+        ]
+      })
+
+      // Inline contact save for sandbox
+      if (saveRecipient && saveName) {
+        try {
+          await fetch('/api/contacts', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              ownerAddr: address,
+              name: saveName,
+              address: recipient,
+              label: saveLabel
+            })
+          })
+        } catch (e) {
+          console.error('Error auto-saving contact in sandbox:', e)
+        }
+      }
+
+      setTxHash(fakeTxHash)
+      setWireId(fakeWireId)
+      setStep('success')
+
+      updateModal({
+        type: 'success',
+        title: isOverLimit ? 'Wire Initiated & Held in Escrow' : 'Wire Transfer Settled!',
+        description: (
+          <div style={{ textAlign: 'left', display: 'flex', flexDirection: 'column', gap: '12px', fontSize: '13px', lineHeight: '1.6' }}>
+            <p>Successfully processed <strong>{amount} USDC</strong> to <strong>{recipient.slice(0, 6)}...{recipient.slice(-4)}</strong> (Simulated).</p>
+            {isOverLimit ? (
+              <div className="callout" style={{ borderColor: 'var(--warning)', background: 'var(--warning-bg)', margin: 0 }}>
+                <strong className="text-warning font-semibold">Signatories Action Required</strong>
+                <p className="text-warning text-xs mt-1">This payment exceeds $10,000 USDC. Navigate to the compliance board and obtain a signature release to finalize the transfer.</p>
+              </div>
+            ) : (
+              <div className="callout" style={{ borderColor: 'var(--success)', background: 'var(--success-bg)', margin: 0 }}>
+                <strong className="text-success font-semibold">Sub-Second Settlement Proof</strong>
+                <p className="text-success text-xs mt-1">This transaction settled deterministically on the Arc L1 engine in under 1 second.</p>
+              </div>
+            )}
+          </div>
+        ),
+        confirmText: 'Done',
+        onConfirm: () => { resetForm() }
+      })
+      return
     }
 
     setStep('approve')
@@ -305,13 +547,18 @@ export default function SendPage() {
             title: 'Approving USDC spending',
             description: 'Please authorize the spending limit approval request inside your connected corporate wallet...'
           })
-          const approveHash = await walletClient!.writeContract({
-            address: USDC_ADDRESS,
+          const data = encodeFunctionData({
             abi: erc20Abi,
             functionName: 'approve',
             args: [CROSSWIRE_CONTRACT_ADDRESS, amountParsed],
-            chain: null,
-            account: address!,
+          })
+          const approveHash = await walletClient!.request({
+            method: 'eth_sendTransaction',
+            params: [{
+              from: address,
+              to: USDC_ADDRESS,
+              data,
+            }]
           })
           await publicClient!.waitForTransactionReceipt({ hash: approveHash })
         }
@@ -328,8 +575,8 @@ export default function SendPage() {
       setStep('executing')
       showModal({
         type: 'tx-status',
-        title: 'Broadcasting to Arc',
-        description: 'Submitting payment payload to Arc precompiles. Sub-second finality active.',
+        title: 'Broadcasting Settlement',
+        description: 'Submitting payment payload. Sub-second finality active.',
         txStatus: 'pending'
       })
 
@@ -343,8 +590,7 @@ export default function SendPage() {
           )
         )
 
-        hash = await walletClient!.writeContract({
-          address: CROSSWIRE_CONTRACT_ADDRESS,
+        const data = encodeFunctionData({
           abi: crossWireRouterAbi,
           functionName: 'initiateWire',
           args: [
@@ -354,17 +600,28 @@ export default function SendPage() {
             purposeCode,
             memo || 'CrossWire Transfer',
           ],
-          chain: null,
-          account: address!,
+        })
+        hash = await walletClient!.request({
+          method: 'eth_sendTransaction',
+          params: [{
+            from: address,
+            to: CROSSWIRE_CONTRACT_ADDRESS,
+            data,
+          }]
         })
       } else {
-        hash = await walletClient!.writeContract({
-          address: USDC_ADDRESS,
+        const data = encodeFunctionData({
           abi: erc20Abi,
           functionName: 'approve',
           args: [recipient as `0x${string}`, amountParsed],
-          chain: null,
-          account: address!,
+        })
+        hash = await walletClient!.request({
+          method: 'eth_sendTransaction',
+          params: [{
+            from: address,
+            to: USDC_ADDRESS,
+            data,
+          }]
         })
       }
 
@@ -399,6 +656,7 @@ export default function SendPage() {
               ownerAddr: address,
               name: saveName,
               address: recipient,
+              label: saveLabel
             })
           })
         } catch (e) {
@@ -429,7 +687,6 @@ export default function SendPage() {
 
       setStep('success')
 
-      
       const isOverLimit = parseFloat(amount) >= 10000
       updateModal({
         type: 'success',
@@ -459,14 +716,15 @@ export default function SendPage() {
       showModal({
         type: 'error',
         title: 'Transaction Dispatch Failed',
-        description: err?.shortMessage || 'The transaction request was rejected or reverted by the EVM.',
-        errorDetails: err?.message || 'EVM revert.'
+        description: err?.shortMessage || 'The transaction request was rejected or reverted by the network.',
+        errorDetails: err?.message || 'Transaction processing error.'
       })
     }
   }
 
   const handleSubmit = async () => {
-    if (!walletClient || !address || !publicClient) {
+    const isSandbox = typeof window !== 'undefined' && localStorage.getItem('crosswire_sandbox') === 'true'
+    if (!isSandbox && (!walletClient || !address || !publicClient)) {
       toast.error('Connect your wallet first')
       return
     }
@@ -530,9 +788,9 @@ export default function SendPage() {
     if (amountNum >= 10000) {
       showModal({
         type: 'warning',
-        title: 'Compliance: Multi-Sig Limit Exceeded',
-        description: `This transfer of ${amount} USDC exceeds the $10,000 institutional threshold. It will be initiated but locked in the on-chain escrow contract until signed by 2 corporate signatories.`,
-        confirmText: 'Proceed to Escrow',
+        title: 'Compliance: Authorization Threshold Exceeded',
+        description: `This transfer of ${amount} USDC exceeds the $10,000 institutional threshold. It will be initiated but held in escrow pending confirmation from secondary corporate signatories.`,
+        confirmText: 'Proceed to Settlement Hold',
         cancelText: 'Cancel & Revise',
         onConfirm: () => proceedExecution(amountParsed)
       })
@@ -611,6 +869,14 @@ export default function SendPage() {
                     value={recipient}
                     onChange={(val) => setRecipient(val)}
                   />
+                  {matchedContact && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '6px', color: '#10b981' }}>
+                      <CheckCircle size={14} style={{ color: '#10b981' }} />
+                      <span style={{ fontSize: '11px', fontWeight: 600 }}>
+                        Verified Beneficiary: {matchedContact.name} {matchedContact.label && `[${matchedContact.label}]`}
+                      </span>
+                    </div>
+                  )}
                   {recentRecipients.length > 0 && (
                     <div style={{ marginTop: '8px', fontSize: '12px' }}>
                       <span className="text-secondary" style={{ marginRight: '8px' }}>Recent:</span>
@@ -693,15 +959,31 @@ export default function SendPage() {
                 </div>
 
                 {saveRecipient && (
-                  <div className="form-group" style={{ marginBottom: '24px' }}>
-                    <label className="form-label">Recipient Label / Name</label>
-                    <input
-                      className="input-notion"
-                      placeholder="e.g. John Doe, Supplier Account"
-                      value={saveName}
-                      onChange={(e) => setSaveName(e.target.value)}
-                      required
-                    />
+                  <div style={{ display: 'grid', gridTemplateColumns: '1.25fr 1fr', gap: '12px', marginBottom: '24px' }}>
+                    <div className="form-group" style={{ margin: 0 }}>
+                      <label className="form-label">Recipient Label / Name</label>
+                      <input
+                        className="input-notion"
+                        placeholder="e.g. John Doe"
+                        value={saveName}
+                        onChange={(e) => setSaveName(e.target.value)}
+                        required
+                      />
+                    </div>
+                    <div className="form-group" style={{ margin: 0 }}>
+                      <label className="form-label">Category Group</label>
+                      <select
+                        className="input-notion"
+                        value={saveLabel}
+                        onChange={(e) => setSaveLabel(e.target.value)}
+                      >
+                        <option value="Vendor">Vendor / Supplier</option>
+                        <option value="Payroll">Payroll Employee</option>
+                        <option value="Partner">Equity Partner</option>
+                        <option value="Operations">Operations Expense</option>
+                        <option value="Other">Other Contact</option>
+                      </select>
+                    </div>
                   </div>
                 )}
 

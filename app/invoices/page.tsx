@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useAccount } from 'wagmi'
+import { useAccount } from '@/lib/use-crosswire-account'
+import { getSandboxInvoices, updateSandboxInvoiceStatus } from '@/lib/sandbox-store'
 import Link from 'next/link'
 import toast from 'react-hot-toast'
 import Sidebar from '../components/Sidebar'
@@ -27,16 +28,26 @@ export default function InvoicesListPage() {
   const [loading, setLoading] = useState(false)
 
   const fetchInvoices = async () => {
-    if (!address) return
+    const isSandbox = typeof window !== 'undefined' && localStorage.getItem('crosswire_sandbox') === 'true'
+    
     setLoading(true)
     try {
-      const res = await fetch(`/api/invoices?address=${address}`)
-      if (res.ok) {
-        const data = await res.json()
-        setInvoices(data)
-      } else {
-        toast.error('Failed to retrieve invoices')
+      let data: any[] = []
+      if (address) {
+        const res = await fetch(`/api/invoices?address=${address}`)
+        if (res.ok) {
+          data = await res.json()
+        } else {
+          toast.error('Failed to retrieve invoices')
+        }
       }
+
+      if (isSandbox) {
+        const sInvoices = getSandboxInvoices()
+        data = [...sInvoices, ...data]
+      }
+
+      setInvoices(data)
     } catch (err) {
       console.error(err)
       toast.error('Error loading invoices')
@@ -46,12 +57,16 @@ export default function InvoicesListPage() {
   }
 
   useEffect(() => {
-    if (address) {
-      fetchInvoices()
-    } else {
-      setInvoices([])
-    }
+    fetchInvoices()
   }, [address])
+
+  useEffect(() => {
+    const handleSandboxChange = () => {
+      fetchInvoices()
+    }
+    window.addEventListener('crosswire_sandbox_changed', handleSandboxChange)
+    return () => window.removeEventListener('crosswire_sandbox_changed', handleSandboxChange)
+  }, [])
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text)
@@ -59,14 +74,24 @@ export default function InvoicesListPage() {
   }
 
   // Calculate metrics
-  const sentInvoices = invoices.filter(i => i.payeeAddr.toLowerCase() === address?.toLowerCase())
-  const receivedInvoices = invoices.filter(i => i.payerAddr?.toLowerCase() === address?.toLowerCase())
+  const displayAddress = address || '0x3a92dB4F4B84F01A18d96b04C63E63e800000000'
+  const sentInvoices = invoices.filter(i => i.payeeAddr.toLowerCase() === displayAddress.toLowerCase())
+  const receivedInvoices = invoices.filter(i => i.payerAddr?.toLowerCase() === displayAddress.toLowerCase())
 
   const totalRequested = sentInvoices.reduce((acc, curr) => acc + parseFloat(curr.amount), 0)
   const totalReceived = sentInvoices.filter(i => i.status === 'PAID').reduce((acc, curr) => acc + parseFloat(curr.amount), 0)
   const pendingCollection = sentInvoices.filter(i => i.status === 'SENT').reduce((acc, curr) => acc + parseFloat(curr.amount), 0)
 
   const handleUpdateStatus = async (id: number, nextStatus: string) => {
+    const isSandbox = typeof window !== 'undefined' && localStorage.getItem('crosswire_sandbox') === 'true'
+    
+    if (isSandbox) {
+      updateSandboxInvoiceStatus(id, nextStatus as any)
+      toast.success(`Invoice status updated to ${nextStatus} (Simulated)`)
+      fetchInvoices()
+      return
+    }
+
     try {
       const res = await fetch('/api/invoices', {
         method: 'PUT',
