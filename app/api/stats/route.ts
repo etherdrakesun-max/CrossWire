@@ -16,9 +16,9 @@ export async function GET() {
       where: { status: 'EXECUTED' }
     })
     
-    let totalVolumeBig = 0n
+    let totalVolume = 0
     for (const w of executedWires) {
-      totalVolumeBig += BigInt(w.amount)
+      totalVolume += parseFloat(w.amount) || 0
     }
 
     const recentWires = await prisma.wire.findMany({
@@ -29,7 +29,7 @@ export async function GET() {
 
     return NextResponse.json({
       wireCount: wireCount.toString(),
-      totalVolume: totalVolumeBig.toString(),
+      totalVolume: totalVolume.toString(),
       recentWires: recentWires.map((w) => ({
         transactionHash: w.txHash,
         args: {
