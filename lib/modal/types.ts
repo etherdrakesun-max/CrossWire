@@ -2,7 +2,7 @@ import React from 'react'
 
 export type LegacyModalType = 'confirm' | 'loading' | 'success' | 'error' | 'warning' | 'tx-status'
 export type NewModalType = 'confirmation' | 'processing' | 'success' | 'error' | 'warning' | 'transaction' | 'system'
-export type ModalType = LegacyModalType | NewModalType
+export type ModalType = LegacyModalType | NewModalType | 'custom'
 
 export type ModalPriority = 'P0' | 'P1' | 'P2' | 'P3'
 // P0: Critical (Security alerts, maintenance, downtime)

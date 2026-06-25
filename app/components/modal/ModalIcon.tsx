@@ -139,6 +139,18 @@ export default function ModalIcon({ type, destructive, txStatus, systemAlertType
           box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
         }
         
+        .sr-only {
+          position: absolute;
+          width: 1px;
+          height: 1px;
+          padding: 0;
+          margin: -1px;
+          overflow: hidden;
+          clip: rect(0, 0, 0, 0);
+          white-space: nowrap;
+          border-width: 0;
+        }
+        
         .premium-spinner {
           width: 48px;
           height: 48px;

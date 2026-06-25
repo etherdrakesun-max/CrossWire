@@ -58,7 +58,7 @@ export default function WarningModal({ config, onClose }: VariantProps) {
           gap: 10px;
           background: var(--warning-bg);
           border: 1px solid rgba(255, 171, 0, 0.2);
-          border-radius: 2px;
+          border-radius: 6px;
           padding: 12px;
           margin-top: 16px;
           text-align: left;

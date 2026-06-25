@@ -87,7 +87,7 @@ export default function ErrorModal({ config, onClose }: VariantProps) {
           border: 1px solid var(--border);
           color: var(--danger);
           padding: 12px;
-          border-radius: 2px;
+          border-radius: 6px;
           font-size: 11px;
           margin-top: 8px;
           max-height: 140px;

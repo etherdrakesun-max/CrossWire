@@ -103,17 +103,23 @@ export function ModalProvider({ children }: { children: React.ReactNode }) {
   }, [activeModals, isDuplicate])
 
   const hideModal = useCallback(() => {
-    if (activeModals.length === 0) return
+    setActiveModals(prev => {
+      if (prev.length === 0) return prev
 
-    const closingModal = activeModals[activeModals.length - 1]
-    
-    // Call cancel callbacks if set
-    if (closingModal.onCancel) {
-      closingModal.onCancel()
-    }
+      const closingModal = prev[prev.length - 1]
+      
+      // Call cancel callbacks if set
+      if (closingModal.onCancel) {
+        try {
+          closingModal.onCancel()
+        } catch (err) {
+          console.error('Error calling onCancel:', err)
+        }
+      }
 
-    // Pop the active modal from the stack after closing transition (allow animations to play)
-    setActiveModals(prev => prev.slice(0, -1))
+      // Pop the active modal from the stack after closing transition
+      return prev.slice(0, -1)
+    })
 
     // Pull from queue if stack becomes empty or to fill next slot
     setTimeout(() => {
@@ -128,7 +134,7 @@ export function ModalProvider({ children }: { children: React.ReactNode }) {
         return rest
       })
     }, 200)
-  }, [activeModals])
+  }, [])
 
   const updateModal = useCallback((updatedFields: Partial<ModalConfig>) => {
     setActiveModals(prev => {

@@ -134,7 +134,7 @@ export default function ModalContainer() {
         .modal-inner-card {
           background: var(--surface);
           border: 1px solid var(--border);
-          border-radius: 4px;
+          border-radius: 12px;
           width: 100%;
           max-width: 460px;
           padding: 32px;
