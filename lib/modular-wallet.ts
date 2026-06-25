@@ -19,7 +19,12 @@ import { toWebAuthnAccount, createBundlerClient } from 'viem/account-abstraction
 import { estimateGasSavings, getPaymasterUrl } from './paymaster'
 
 const CLIENT_KEY = process.env.NEXT_PUBLIC_CIRCLE_CLIENT_KEY || 'demo_client_key'
-const CLIENT_URL = process.env.NEXT_PUBLIC_CIRCLE_CLIENT_URL || 'https://modular-sdk.circle.com/v1/rpc/w3s/buidl'
+let rawUrl = process.env.NEXT_PUBLIC_CIRCLE_CLIENT_URL || 'https://modular-sdk.circle.com/v1/rpc/w3s'
+
+// Normalize the Client URL: Circle Modular Wallets RPC base URL must be exactly https://modular-sdk.circle.com/v1/rpc/w3s
+rawUrl = rawUrl.replace(/\/buidl\/?$/, '')
+rawUrl = rawUrl.replace(/\/$/, '')
+const CLIENT_URL = rawUrl
 
 // Safely initialize the transports to prevent build-time crashes (e.g. on Vercel)
 const dummyTransport = () => custom({
@@ -39,9 +44,7 @@ try {
 }
 
 try {
-  const modularUrl = CLIENT_URL.includes('/buidl') 
-    ? CLIENT_URL.replace('/buidl', '/buidl/arcTestnet') 
-    : `${CLIENT_URL}/arcTestnet`
+  const modularUrl = `${CLIENT_URL}/arcTestnet`
   modularTransportTmp = toModularTransport(modularUrl, CLIENT_KEY)
 } catch (err) {
   console.warn('⚠️ toModularTransport failed to initialize, using fallback:', err)
