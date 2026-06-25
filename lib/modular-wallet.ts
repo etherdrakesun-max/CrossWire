@@ -249,7 +249,18 @@ export function circleModularWalletConnector() {
           return await account.signMessage({ message })
         }
         if (method === 'eth_sendTransaction') {
-          const [tx] = params || []
+          let txs: any[] = []
+          if (params && Array.isArray(params)) {
+            if (Array.isArray(params[0])) {
+              txs = params[0]
+            } else {
+              txs = params
+            }
+          }
+          if (txs.length === 0) {
+            throw new Error('[ModularWallet] No transaction parameters provided')
+          }
+          const firstTx = txs[0]
           const account = await ensureSmartAccount()
 
           // 1. Call our server route to validate sponsorship eligibility
@@ -263,8 +274,8 @@ export function circleModularWalletConnector() {
               body: JSON.stringify({
                 action: 'validate',
                 userAddress: activeSession?.walletAddress,
-                target: tx.to,
-                data: tx.data
+                target: firstTx.to,
+                data: firstTx.data
               })
             })
             if (res.ok) {
@@ -273,8 +284,8 @@ export function circleModularWalletConnector() {
                 isSponsored = true
                 estimatedSavedUsd = await estimateGasSavings(
                   publicStandardClient,
-                  tx.to,
-                  tx.data,
+                  firstTx.to,
+                  firstTx.data,
                   activeSession!.walletAddress
                 )
               }
@@ -284,27 +295,19 @@ export function circleModularWalletConnector() {
           }
 
           // 1b. Check if the sender has enough native balance to self-fund gas.
-          // If the sender has >= 1 USDC native balance, prefer self-funding to avoid
-          // the ERC-4337 bundler's mempool limit for unstaked paymasters.
-          // Circle's Gas Station paymaster may not be staked on all chains, which
-          // limits pending UserOps to 4 per sender. Self-funding bypasses this entirely.
           let canSelfFundGas = false
           try {
             const senderBalance = await publicStandardClient.getBalance({
               address: activeSession!.walletAddress as Address
             })
-            // 1 USDC = 1e18 wei on Arc (native token is USDC with 18 decimals)
             canSelfFundGas = senderBalance >= 1000000000000000000n // >= 1 USDC
-            console.log(`[ModularWallet] Sender native balance: ${senderBalance}, canSelfFundGas: ${canSelfFundGas}`)
           } catch (balErr) {
             console.warn('[ModularWallet] Failed to check sender balance:', balErr)
           }
 
-          // If account can self-fund, disable paymaster to avoid unstaked paymaster limits
           const usePaymaster = isSponsored && !canSelfFundGas
 
           // We wrap the transport to intercept the signed PackedUserOperation
-          let lastSignedUserOp: any = null
           const interceptingTransport = (opts: any) => {
             const baseTransport = modularTransport(opts)
             return {
@@ -312,7 +315,6 @@ export function circleModularWalletConnector() {
               async request(args: any): Promise<any> {
                 if (args && args.method === 'eth_sendUserOperation') {
                   const [userOp] = args.params || []
-                  lastSignedUserOp = userOp
                   console.log('[ModularWallet] Intercepted signed PackedUserOperation:', userOp)
                 }
                 return await baseTransport.request(args)
@@ -320,13 +322,11 @@ export function circleModularWalletConnector() {
             }
           }
 
-          // 2. Instantiate the Bundler Client with intercepting transport
           const bundlerClient = createBundlerClient({
             chain: arcTestnet,
             transport: interceptingTransport
           })
 
-          // Estimate fees with a minimum floor of 1 Gwei for maxPriorityFeePerGas
           let maxPriorityFeePerGas: bigint | undefined = undefined
           let maxFeePerGas: bigint | undefined = undefined
 
@@ -334,11 +334,11 @@ export function circleModularWalletConnector() {
             const fees = await publicStandardClient.estimateFeesPerGas()
             const baseFee = fees.maxFeePerGas && fees.maxPriorityFeePerGas
               ? fees.maxFeePerGas - fees.maxPriorityFeePerGas
-              : 20000000000n // default base fee fallback
+              : 20000000000n
 
             maxPriorityFeePerGas = fees.maxPriorityFeePerGas !== undefined && fees.maxPriorityFeePerGas > 1000000000n
               ? fees.maxPriorityFeePerGas
-              : 1000000000n // Force 1 Gwei floor for precheck
+              : 1000000000n
 
             maxFeePerGas = baseFee + maxPriorityFeePerGas
           } catch (err) {
@@ -347,18 +347,21 @@ export function circleModularWalletConnector() {
             maxFeePerGas = 50000000000n
           }
 
+          // Construct the calls array for batch support
+          const calls = txs.map((txItem: any) => ({
+            to: txItem.to as Address,
+            data: txItem.data as Hex,
+            value: txItem.value ? BigInt(txItem.value) : undefined,
+          }))
+
           // 3. Send the UserOperation transaction with retry logic
-          console.log(`[ModularWallet] Sending UserOperation (paymaster: ${usePaymaster})...`)
+          console.log(`[ModularWallet] Sending UserOperation (paymaster: ${usePaymaster}, calls count: ${calls.length})...`)
           let userOpHash: Hex | undefined
           let directSubmitHash: string | undefined
           try {
             userOpHash = await bundlerClient.sendUserOperation({
               account,
-              calls: [{
-                to: tx.to as Address,
-                data: tx.data as Hex,
-                value: tx.value ? BigInt(tx.value) : undefined,
-              }],
+              calls,
               paymaster: usePaymaster ? true : undefined,
               maxPriorityFeePerGas,
               maxFeePerGas
@@ -369,16 +372,11 @@ export function circleModularWalletConnector() {
             const isPaymasterStakeError = errMsg.includes('stake') || errMsg.includes('unstake')
             
             if (isPaymasterStakeError && usePaymaster && !isMaxOpsError) {
-              // Retry without paymaster
               console.warn('[ModularWallet] Paymaster unstaked. Retrying without paymaster...')
               try {
                 userOpHash = await bundlerClient.sendUserOperation({
                   account,
-                  calls: [{
-                    to: tx.to as Address,
-                    data: tx.data as Hex,
-                    value: tx.value ? BigInt(tx.value) : undefined,
-                  }],
+                  calls,
                   maxPriorityFeePerGas,
                   maxFeePerGas
                 })
@@ -386,7 +384,6 @@ export function circleModularWalletConnector() {
               } catch (retryErr: any) {
                 const retryMsg = retryErr?.message || ''
                 if (retryMsg.includes('Max operations') || retryMsg.includes('unstaked')) {
-                  // Fall through to direct submit
                   console.warn('[ModularWallet] Bundler mempool full. Falling back to direct submit...')
                 } else {
                   throw retryErr
@@ -394,11 +391,9 @@ export function circleModularWalletConnector() {
               }
             }
             
-            // Fallback: if bundler mempool is full or blocked estimation, submit directly on-chain
             if (!userOpHash && (isMaxOpsError || isPaymasterStakeError)) {
               console.warn('[ModularWallet] Bundler blocked execution. Preparing manual signed UserOperation...')
               
-              // 1. Attempt manual preparation and signing client-side
               try {
                 const nonce = await account.getNonce()
                 const isDeployed = await account.isDeployed()
@@ -407,26 +402,21 @@ export function circleModularWalletConnector() {
                   const factoryArgs = await account.getFactoryArgs()
                   initCode = `${factoryArgs.factory}${factoryArgs.factoryData.slice(2)}` as Hex
                 }
-                const callData = await account.encodeCalls([{
-                  to: tx.to as Address,
-                  value: tx.value ? BigInt(tx.value) : undefined,
-                  data: tx.data as Hex
-                }])
+                const callData = await account.encodeCalls(calls)
 
                 const manualUserOp = {
                   sender: account.address,
                   nonce,
                   initCode,
                   callData,
-                  callGasLimit: 120000n,
+                  callGasLimit: 150000n * BigInt(calls.length),
                   verificationGasLimit: 2000000n,
-                  preVerificationGas: 100000n,
+                  preVerificationGas: 100000n * BigInt(calls.length),
                   maxFeePerGas: maxFeePerGas || 25000000000n,
                   maxPriorityFeePerGas: maxPriorityFeePerGas || 1000000000n,
                   paymasterAndData: '0x' as Hex
                 }
 
-                console.log('[ModularWallet] Requesting WebAuthn signature for manually constructed UserOperation...')
                 const signature = await account.signUserOperation(manualUserOp)
                 
                 const signedUserOp = {
@@ -434,7 +424,6 @@ export function circleModularWalletConnector() {
                   signature
                 }
 
-                console.warn('[ModularWallet] Submitting manually signed UserOperation directly to EntryPoint...')
                 const serializedUserOp = {
                   ...signedUserOp,
                   nonce: signedUserOp.nonce.toString(),
@@ -460,29 +449,31 @@ export function circleModularWalletConnector() {
                 console.error('[ModularWallet] Direct EntryPoint submit failed, trying EOA fallback next:', directErr)
               }
 
-              // 2. As an absolute last-resort backup: EOA fallback
               if (!directSubmitHash) {
                 console.warn('[ModularWallet] Using EOA proxy fallback...')
                 try {
-                  const res = await fetch('/api/direct-submit', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                      to: tx.to,
-                      data: tx.data,
-                      userAddress: activeSession?.walletAddress
+                  for (const tx of txs) {
+                    const res = await fetch('/api/direct-submit', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        to: tx.to,
+                        data: tx.data,
+                        userAddress: activeSession?.walletAddress
+                      })
                     })
-                  })
-                  const result = await res.json()
-                  if (res.ok && result.success) {
-                    directSubmitHash = result.txHash
-                    console.log('[ModularWallet] EOA proxy fallback succeeded! Tx:', directSubmitHash)
-                  } else {
-                    throw new Error(result.error || 'EOA proxy fallback failed')
+                    const result = await res.json()
+                    if (res.ok && result.success) {
+                      directSubmitHash = result.txHash
+                      console.log('[ModularWallet] EOA proxy fallback item succeeded! Tx:', directSubmitHash)
+                    } else {
+                      throw new Error(result.error || 'EOA proxy fallback failed')
+                    }
                   }
+                  console.log('[ModularWallet] EOA proxy fallback batch succeeded!')
                 } catch (directErr: any) {
                   console.error('[ModularWallet] EOA proxy fallback also failed:', directErr)
-                  throw sendErr // throw original bundler error
+                  throw sendErr
                 }
               }
             } else if (!userOpHash) {
