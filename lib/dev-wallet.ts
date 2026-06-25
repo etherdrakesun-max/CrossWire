@@ -10,12 +10,18 @@ import {
 import { crossWireRouterAbi, erc20Abi } from './contracts'
 
 // Initialize Circle Developer-Controlled Wallets Client if credentials exist
-const circleClient = process.env.CIRCLE_API_KEY
-  ? initiateDeveloperControlledWalletsClient({
+let circleClientTmp: any = null
+if (process.env.CIRCLE_API_KEY) {
+  try {
+    circleClientTmp = initiateDeveloperControlledWalletsClient({
       apiKey: process.env.CIRCLE_API_KEY,
       entitySecret: process.env.CIRCLE_ENTITY_SECRET || '00000000000000000000000000000000'
     } as any)
-  : null
+  } catch (err) {
+    console.warn('⚠️ initiateDeveloperControlledWalletsClient failed to initialize:', err)
+  }
+}
+const circleClient = circleClientTmp
 
 
 /**

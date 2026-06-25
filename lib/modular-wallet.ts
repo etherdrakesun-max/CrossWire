@@ -19,11 +19,37 @@ import { toWebAuthnAccount, createBundlerClient } from 'viem/account-abstraction
 import { estimateGasSavings, getPaymasterUrl } from './paymaster'
 
 const CLIENT_KEY = process.env.NEXT_PUBLIC_CIRCLE_CLIENT_KEY || 'demo_client_key'
-const CLIENT_URL = process.env.NEXT_PUBLIC_CIRCLE_CLIENT_URL || 'https://modular-sdk.circle.com/v1/rpc/w3s'
+const CLIENT_URL = process.env.NEXT_PUBLIC_CIRCLE_CLIENT_URL || 'https://modular-sdk.circle.com/v1/rpc/w3s/buidl'
 
-// Initialize the transports
-export const passkeyTransport = toPasskeyTransport(CLIENT_URL, CLIENT_KEY)
-export const modularTransport = toModularTransport(`${CLIENT_URL}/arcTestnet`, CLIENT_KEY)
+// Safely initialize the transports to prevent build-time crashes (e.g. on Vercel)
+const dummyTransport = () => custom({
+  request: async () => {
+    throw new Error('Circle transport is uninitialized or invalid')
+  }
+})
+
+let passkeyTransportTmp: any
+let modularTransportTmp: any
+
+try {
+  passkeyTransportTmp = toPasskeyTransport(CLIENT_URL, CLIENT_KEY)
+} catch (err) {
+  console.warn('⚠️ toPasskeyTransport failed to initialize, using fallback:', err)
+  passkeyTransportTmp = dummyTransport()
+}
+
+try {
+  const modularUrl = CLIENT_URL.includes('/buidl') 
+    ? CLIENT_URL.replace('/buidl', '/buidl/arcTestnet') 
+    : `${CLIENT_URL}/arcTestnet`
+  modularTransportTmp = toModularTransport(modularUrl, CLIENT_KEY)
+} catch (err) {
+  console.warn('⚠️ toModularTransport failed to initialize, using fallback:', err)
+  modularTransportTmp = dummyTransport()
+}
+
+export const passkeyTransport = passkeyTransportTmp
+export const modularTransport = modularTransportTmp
 
 export const publicModularClient = createPublicClient({
   chain: arcTestnet,
