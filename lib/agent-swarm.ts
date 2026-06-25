@@ -5,8 +5,8 @@ import { prisma } from './db'
 import { ChatOpenAI } from '@langchain/openai'
 
 export interface CreatorEvent {
-  type: 'scrobble' | 'stream_webhook' | 'citation'
-  sourceId: string // MBID, channelId, or articleId
+  type: 'foss_split' | 'api_query' | 'citation'
+  sourceId: string // RepoId, apiCallId, or articleId
   creatorName: string
   consumerAddress: string
   metadata?: any
@@ -37,10 +37,10 @@ export interface SwarmResult {
 export function resolveCreatorWallet(creatorName: string, sourceId: string): string {
   const nameClean = creatorName.toLowerCase().trim()
   
-  if (nameClean.includes('taylor') || sourceId === 'mbid-taylor-swift') {
+  if (nameClean.includes('contributor') || sourceId.startsWith('repo-')) {
     return '0x70997970c51812dc3a010c7d01b50e0d17dc79c8' // Test Account 1
   }
-  if (nameClean.includes('owncast') || sourceId === 'owncast-stream-channel') {
+  if (nameClean.includes('gateway') || sourceId.startsWith('query-')) {
     return '0x3c44cdddb6a900fa2b585dd299e03d12fa4293bc' // Test Account 2
   }
   if (nameClean.includes('rsshub') || nameClean.includes('author') || sourceId.startsWith('paper-')) {
@@ -127,13 +127,14 @@ Reply ONLY with a JSON object: {"decision": "USDC" | "EURC", "rationale": "short
     log('COORDINATOR', `Paying Verifier Agent hiring fee of $${verifierFee.toFixed(6)} USDC...`)
     
     let paymentAmount = 0.0001 // Default base payment
-    if (event.type === 'scrobble') {
-      log('VERIFIER', `Verified track play: "${event.metadata?.track || 'Unknown Track'}" for ${event.creatorName}.`)
-      paymentAmount = 0.00025 // $0.00025 per scrobble
-    } else if (event.type === 'stream_webhook') {
-      const duration = Number(event.metadata?.durationSeconds || 0)
-      log('VERIFIER', `Verified live stream viewer check-in. Duration watched: ${duration} seconds.`)
-      paymentAmount = duration * 0.00001 // $0.00001 USDC per second
+    if (event.type === 'foss_split') {
+      const commitCount = Number(event.metadata?.commits || 1)
+      log('VERIFIER', `Verified FOSS commit contributions for ${event.creatorName}. Commits counted: ${commitCount}.`)
+      paymentAmount = commitCount * 0.05 // $0.05 per commit contribution
+    } else if (event.type === 'api_query') {
+      const queryCount = Number(event.metadata?.queries || 1)
+      log('VERIFIER', `Verified premium API gateway requests. Queries processed: ${queryCount}.`)
+      paymentAmount = queryCount * 0.001 // $0.001 per API request
     } else if (event.type === 'citation') {
       log('VERIFIER', `Scanning RSS citation data for LLM Crawler resolve.`)
       paymentAmount = 0.005 // $0.005 per citation lookup

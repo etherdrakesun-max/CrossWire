@@ -1,8 +1,8 @@
 import { prisma } from './db'
 import webpush from 'web-push'
 
-const PUBLIC_VAPID_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || 'BFZ6-G_e5091_2b90_5382_4829_1711_3321_3910_512'
-const PRIVATE_VAPID_KEY = process.env.VAPID_PRIVATE_KEY || 'M2z_7_v9720_0039_4822_9281_1234_5678_1920'
+const PUBLIC_VAPID_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || 'BB0SrDKgGYs3aCt-b50SFtJw0jUvJwtm1u9rBD1ivA-oneAHrB00Ct6LghWd5KKO__ToWcyRk7LTHj7cXUeY65k'
+const PRIVATE_VAPID_KEY = process.env.VAPID_PRIVATE_KEY || 'WSjKUwN6RMfyEeqiDvqd8ON66fPlQv-A492sZba4cMk'
 
 try {
   webpush.setVapidDetails(

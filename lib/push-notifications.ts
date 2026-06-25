@@ -2,8 +2,7 @@
  * Client-side utility for Push Notification subscription management.
  */
 
-// Default VAPID key for local development/simulation
-const PUBLIC_VAPID_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || 'BFZ6-G_e5091_2b90_5382_4829_1711_3321_3910_512'
+const PUBLIC_VAPID_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || 'BB0SrDKgGYs3aCt-b50SFtJw0jUvJwtm1u9rBD1ivA-oneAHrB00Ct6LghWd5KKO__ToWcyRk7LTHj7cXUeY65k'
 
 /**
  * Convert VAPID public key base64 string to Uint8Array
