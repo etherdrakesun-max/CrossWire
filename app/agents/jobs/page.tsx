@@ -7,7 +7,7 @@ import Sidebar from '../../components/Sidebar'
 import Topbar from '../../components/Topbar'
 import { erc20Abi, crossWireAgentAbi } from '@/lib/contracts'
 import { USDC_ADDRESS, CROSSWIRE_CONTRACT_ADDRESS, CROSSWIRE_AGENT_CONTRACT_ADDRESS, getExplorerTxUrl } from '@/lib/arc-config'
-import { parseUnits, keccak256, encodePacked } from 'viem'
+import { parseUnits, keccak256, encodePacked, encodeFunctionData } from 'viem'
 import { 
   Briefcase, 
   Plus, 
@@ -102,13 +102,18 @@ export default function JobsBoardPage() {
 
         if (currentAllowance < amountParsed) {
           toast.loading('Approving USDC Escrow Deposit...', { id: 'escrow-toast' })
-          const approveHash = await walletClient.writeContract({
-            address: USDC_ADDRESS,
+          const approveData = encodeFunctionData({
             abi: erc20Abi,
             functionName: 'approve',
             args: [CROSSWIRE_AGENT_CONTRACT_ADDRESS, amountParsed],
-            chain: null,
-            account: address,
+          })
+          const approveHash = await walletClient.request({
+            method: 'eth_sendTransaction',
+            params: [{
+              from: address,
+              to: USDC_ADDRESS,
+              data: approveData,
+            }]
           })
           await publicClient.waitForTransactionReceipt({ hash: approveHash })
         }
@@ -120,13 +125,18 @@ export default function JobsBoardPage() {
             [title, BigInt(Date.now())]
           )
         )
-        const createJobTx = await walletClient.writeContract({
-          address: CROSSWIRE_AGENT_CONTRACT_ADDRESS,
+        const createJobData = encodeFunctionData({
           abi: crossWireAgentAbi,
           functionName: 'createJob',
           args: [jobHash, selectedAgent as `0x${string}`, amountParsed],
-          chain: null,
-          account: address,
+        })
+        const createJobTx = await walletClient.request({
+          method: 'eth_sendTransaction',
+          params: [{
+            from: address,
+            to: CROSSWIRE_AGENT_CONTRACT_ADDRESS,
+            data: createJobData,
+          }]
         })
         const receipt = await publicClient.waitForTransactionReceipt({ hash: createJobTx })
         txHash = receipt.transactionHash
@@ -186,13 +196,18 @@ export default function JobsBoardPage() {
           )
         )
         toast.loading('Submitting proof on-chain...', { id: 'proof-toast' })
-        const proofTx = await walletClient.writeContract({
-          address: CROSSWIRE_AGENT_CONTRACT_ADDRESS,
+        const submitProofData = encodeFunctionData({
           abi: crossWireAgentAbi,
           functionName: 'submitProof',
           args: [jobHash, proofUri],
-          chain: null,
-          account: address,
+        })
+        const proofTx = await walletClient.request({
+          method: 'eth_sendTransaction',
+          params: [{
+            from: address,
+            to: CROSSWIRE_AGENT_CONTRACT_ADDRESS,
+            data: submitProofData,
+          }]
         })
         const receipt = await publicClient.waitForTransactionReceipt({ hash: proofTx })
         txHash = receipt.transactionHash
@@ -240,13 +255,18 @@ export default function JobsBoardPage() {
             [job.title, BigInt(new Date(job.createdAt).getTime())]
           )
         )
-        const releaseTx = await walletClient.writeContract({
-          address: CROSSWIRE_AGENT_CONTRACT_ADDRESS,
+        const releaseEscrowData = encodeFunctionData({
           abi: crossWireAgentAbi,
           functionName: 'releaseEscrow',
           args: [jobHash],
-          chain: null,
-          account: address,
+        })
+        const releaseTx = await walletClient.request({
+          method: 'eth_sendTransaction',
+          params: [{
+            from: address,
+            to: CROSSWIRE_AGENT_CONTRACT_ADDRESS,
+            data: releaseEscrowData,
+          }]
         })
         const receipt = await publicClient.waitForTransactionReceipt({ hash: releaseTx })
         txHash = receipt.transactionHash
@@ -292,13 +312,18 @@ export default function JobsBoardPage() {
           )
         )
         toast.loading('Filing dispute on-chain...', { id: 'dispute-toast' })
-        const disputeTx = await walletClient.writeContract({
-          address: CROSSWIRE_AGENT_CONTRACT_ADDRESS,
+        const disputeJobData = encodeFunctionData({
           abi: crossWireAgentAbi,
           functionName: 'disputeJob',
           args: [jobHash],
-          chain: null,
-          account: address,
+        })
+        const disputeTx = await walletClient.request({
+          method: 'eth_sendTransaction',
+          params: [{
+            from: address,
+            to: CROSSWIRE_AGENT_CONTRACT_ADDRESS,
+            data: disputeJobData,
+          }]
         })
         const receipt = await publicClient.waitForTransactionReceipt({ hash: disputeTx })
         txHash = receipt.transactionHash
