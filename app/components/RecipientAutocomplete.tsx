@@ -97,22 +97,7 @@ export default function RecipientAutocomplete({
       />
 
       {isOpen && filtered.length > 0 && (
-        <div
-          style={{
-            position: 'absolute',
-            top: '100%',
-            left: 0,
-            right: 0,
-            marginTop: '4px',
-            background: 'var(--bg-card, #1c1c1e)',
-            border: '1px solid var(--border, #2c2c2e)',
-            borderRadius: '4px',
-            boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
-            maxHeight: '220px',
-            overflowY: 'auto',
-            zIndex: 1000,
-          }}
-        >
+        <div className="autocomplete-dropdown">
           {filtered.map((contact) => (
             <div
               key={contact.id}
@@ -121,29 +106,30 @@ export default function RecipientAutocomplete({
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
-                padding: '8px 12px',
+                padding: '10px 14px',
                 cursor: 'pointer',
-                borderBottom: '1px solid var(--border, #2c2c2e)',
-                transition: 'background 0.2s',
+                borderBottom: '1px solid var(--border)',
+                transition: 'background 0.2s ease',
               }}
-              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)')}
+              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--bg-secondary)')}
               onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', overflow: 'hidden' }}>
                 <User size={14} className="text-muted" style={{ minWidth: '14px' }} />
                 <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <span style={{ fontWeight: 600, fontSize: '13px', whiteSpace: 'nowrap' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ fontWeight: 600, fontSize: '13px', whiteSpace: 'nowrap', color: 'var(--text-primary)' }}>
                       {contact.name}
                     </span>
                     {contact.label && (
                       <span
                         style={{
                           fontSize: '10px',
-                          background: 'rgba(255, 255, 255, 0.1)',
-                          padding: '1px 4px',
-                          borderRadius: '2px',
-                          color: 'var(--text-muted, #8e8e93)',
+                          background: 'var(--bg-secondary)',
+                          padding: '2px 6px',
+                          borderRadius: '4px',
+                          color: 'var(--text-secondary)',
+                          fontWeight: 500
                         }}
                       >
                         {contact.label}
@@ -154,10 +140,11 @@ export default function RecipientAutocomplete({
                     className="text-mono"
                     style={{
                       fontSize: '11px',
-                      color: 'var(--text-muted, #8e8e93)',
+                      color: 'var(--text-secondary)',
                       textOverflow: 'ellipsis',
                       overflow: 'hidden',
                       whiteSpace: 'nowrap',
+                      marginTop: '2px'
                     }}
                   >
                     {contact.address}
@@ -165,7 +152,7 @@ export default function RecipientAutocomplete({
                 </div>
               </div>
               {contact.isFavorite && (
-                <Star size={14} fill="var(--accent, #f5a623)" stroke="var(--accent, #f5a623)" style={{ minWidth: '14px' }} />
+                <Star size={14} fill="var(--warning, #FFAB00)" stroke="var(--warning, #FFAB00)" style={{ minWidth: '14px' }} />
               )}
             </div>
           ))}

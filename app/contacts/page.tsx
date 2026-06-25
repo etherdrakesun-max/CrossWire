@@ -273,7 +273,19 @@ export default function ContactsPage() {
 
   // Export CSV template
   const downloadCSVTemplate = () => {
-    const csvContent = 'name,address,label,favorite\nJohn Doe,0x0000000000000000000000000000000000000000,Corporate,true\nJane Smith,0x0000000000000000000000000000000000000000,Supplier,false'
+    const csvContent = [
+      'name,address,label,favorite',
+      'Acme Corp Treasury,0xf9d60a8afa70e1ff9ac5edf8de31fdd72b730297,Corporate,true',
+      'Nexus Finance LLC,0xe04fa20003e52647bf7eee23f99cbafa19db1458,Partner,true',
+      'Sarah Chen,0x785eb48af6f8aaf294235ea85534d1212e76adc4,Freelancer,false',
+      'BlockFi Settlements,0xc996aaebf495936fb777b0aa0dd884907b846553,Exchange,true',
+      'DeFi Yield DAO,0x5322cc2a9b98bc08032e5cb26f2fad43513641ab,Protocol,false',
+      'Marcus Johnson,0x471e46779de6742ea0ba9de77a1f0a70f4f43672,Contractor,false',
+      'Stellar Payments Inc,0x24303d9877761611096c239363cbe8f9e110b4e5,Vendor,true',
+      'Hashkey Capital,0x62a6f66a81e7cc734cbec1dca7ec02b3db1acd3e,Investor,false',
+      'Elena Rodriguez,0x3b722517894de8a995ad71893f5c27ba77fd3357,Supplier,false',
+      'PayStream Global,0x5d2b8483efb058b638997ebc68019cb8a34709c8,Payroll,true',
+    ].join('\n')
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
     const url = URL.createObjectURL(blob)
     const link = document.createElement('a')
