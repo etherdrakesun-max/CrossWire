@@ -17,7 +17,7 @@ export default function ClientAuthWrapper({ children }: ClientAuthWrapperProps) 
   const isPublicPath = (path: string): boolean => {
     if (path === '/' || path === '/favicon.ico' || path === '/site.webmanifest') return true
     
-    const publicPrefixes = ['/docs', '/faq', '/about', '/support', '/terms', '/privacy']
+    const publicPrefixes = ['/docs', '/faq', '/about', '/support', '/terms', '/privacy', '/pay']
     return publicPrefixes.some(prefix => path.startsWith(prefix))
   }
 

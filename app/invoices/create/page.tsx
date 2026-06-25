@@ -221,7 +221,7 @@ export default function InvoiceCreatePage() {
 
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                     {lineItems.map((item, index) => (
-                      <div key={index} style={{ display: 'grid', gridTemplateColumns: '2fr 80px 120px auto', gap: '12px', alignItems: 'center' }}>
+                      <div key={index} className="line-item-row">
                         <div>
                           <input
                             type="text"
@@ -262,7 +262,7 @@ export default function InvoiceCreatePage() {
                             onClick={() => handleRemoveItem(index)}
                             title="Remove item line"
                           >
-                            <Trash2 size={12} />
+                            <Trash2 size={14} />
                           </button>
                         </div>
                       </div>
