@@ -3,6 +3,11 @@ const nextConfig = {
   reactStrictMode: true,
   webpack: (config, { isServer }) => {
     config.resolve.fallback = { fs: false, net: false, tls: false }
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      '@react-native-async-storage/async-storage': false,
+      'react-native': false
+    }
     config.externals.push('pino-pretty', 'lokijs', 'encoding')
 
     // Ignore Hardhat and deployment scripts from Next.js build
