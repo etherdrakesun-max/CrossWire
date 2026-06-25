@@ -58,6 +58,19 @@ export async function depositToGateway(userAddress: string, amount: number, txHa
   let totalUsdcTransferred = BigInt(0)
   const transferTopic = '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef'
 
+  // Also accept transfers from the deployer EOA (used by /api/direct-submit fallback
+  // when the ERC-4337 bundler's mempool is full due to stuck UserOps)
+  const deployerAddress = process.env.PRIVATE_KEY
+    ? (() => {
+        try {
+          const { privateKeyToAccount } = require('viem/accounts')
+          const pk = process.env.PRIVATE_KEY!
+          const account = privateKeyToAccount((pk.startsWith('0x') ? pk : `0x${pk}`) as `0x${string}`)
+          return account.address.toLowerCase()
+        } catch { return '' }
+      })()
+    : ''
+
   for (const log of receipt.logs) {
     const topic1 = log.topics[1]
     const topic2 = log.topics[2]
@@ -70,7 +83,10 @@ export async function depositToGateway(userAddress: string, amount: number, txHa
       const fromAddr = '0x' + topic1.slice(26).toLowerCase()
       const toAddr = '0x' + topic2.slice(26).toLowerCase()
 
-      if (fromAddr === addressLower && toAddr === CROSSWIRE_CONTRACT_ADDRESS.toLowerCase()) {
+      // Accept transfers from the user's address OR the deployer EOA (direct-submit fallback)
+      const isFromUser = fromAddr === addressLower
+      const isFromDeployer = deployerAddress && fromAddr === deployerAddress
+      if ((isFromUser || isFromDeployer) && toAddr === CROSSWIRE_CONTRACT_ADDRESS.toLowerCase()) {
         const value = BigInt(log.data)
         totalUsdcTransferred += value
       }

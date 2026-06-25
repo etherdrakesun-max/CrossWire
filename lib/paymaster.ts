@@ -4,7 +4,8 @@ import { arcTestnet } from './arc-config'
 export const PAYMASTER_ADDRESS = '0x1f91886c7028986ad885ffcee0e40b75c9cd5ac1'
 
 export function getPaymasterUrl() {
-  return process.env.NEXT_PUBLIC_CIRCLE_CLIENT_URL || 'https://modular-sdk.circle.com/v1/rpc/w3s'
+  const baseUrl = process.env.NEXT_PUBLIC_CIRCLE_CLIENT_URL || 'https://modular-sdk.circle.com/v1/rpc/w3s'
+  return `${baseUrl}/arcTestnet`
 }
 
 /**

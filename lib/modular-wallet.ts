@@ -15,7 +15,7 @@ import {
   toWebAuthnCredential, 
   WebAuthnMode 
 } from '@circle-fin/modular-wallets-core'
-import { toWebAuthnAccount } from 'viem/account-abstraction'
+import { toWebAuthnAccount, createBundlerClient } from 'viem/account-abstraction'
 import { estimateGasSavings, getPaymasterUrl } from './paymaster'
 
 const CLIENT_KEY = process.env.NEXT_PUBLIC_CIRCLE_CLIENT_KEY || 'demo_client_key'
@@ -23,11 +23,16 @@ const CLIENT_URL = process.env.NEXT_PUBLIC_CIRCLE_CLIENT_URL || 'https://modular
 
 // Initialize the transports
 export const passkeyTransport = toPasskeyTransport(CLIENT_URL, CLIENT_KEY)
-export const modularTransport = toModularTransport(`${CLIENT_URL}/${arcTestnet.id}`, CLIENT_KEY)
+export const modularTransport = toModularTransport(`${CLIENT_URL}/arcTestnet`, CLIENT_KEY)
 
 export const publicModularClient = createPublicClient({
   chain: arcTestnet,
   transport: modularTransport
+})
+
+export const publicStandardClient = createPublicClient({
+  chain: arcTestnet,
+  transport: http(process.env.NEXT_PUBLIC_ARC_RPC || 'https://rpc.testnet.arc.network')
 })
 
 export interface PasskeySession {
@@ -36,14 +41,97 @@ export interface PasskeySession {
   username: string
 }
 
+function arrayBufferToBase64(buffer: ArrayBuffer | ArrayBufferLike): string {
+  const bytes = new Uint8Array(buffer);
+  let binary = '';
+  for (let i = 0; i < bytes.byteLength; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return window.btoa(binary);
+}
+
+function base64ToArrayBuffer(base64: string): ArrayBuffer {
+  const binaryString = window.atob(base64);
+  const bytes = new Uint8Array(binaryString.length);
+  for (let i = 0; i < binaryString.length; i++) {
+    bytes[i] = binaryString.charCodeAt(i);
+  }
+  return bytes.buffer;
+}
+
+function serializeValue(val: any): any {
+  if (typeof window === 'undefined') return val;
+  if (val instanceof ArrayBuffer) {
+    return { __type: 'ArrayBuffer', data: arrayBufferToBase64(val) }
+  }
+  if (val instanceof Uint8Array) {
+    return { __type: 'Uint8Array', data: arrayBufferToBase64(val.buffer) }
+  }
+  if (Array.isArray(val)) {
+    return val.map(serializeValue)
+  }
+  if (val && typeof val === 'object') {
+    const res: any = {}
+    for (const k in val) {
+      res[k] = serializeValue(val[k])
+    }
+    return res
+  }
+  return val
+}
+
+function deserializeValue(val: any): any {
+  if (typeof window === 'undefined') return val;
+  if (val && typeof val === 'object') {
+    if (val.__type === 'ArrayBuffer') {
+      return base64ToArrayBuffer(val.data)
+    }
+    if (val.__type === 'Uint8Array') {
+      return new Uint8Array(base64ToArrayBuffer(val.data))
+    }
+    if (Array.isArray(val)) {
+      return val.map(deserializeValue)
+    }
+    const res: any = {}
+    for (const k in val) {
+      res[k] = deserializeValue(val[k])
+    }
+    return res
+  }
+  return val
+}
+
 // Session store helpers
 export function getStoredSession(): PasskeySession | null {
   if (typeof window === 'undefined') return null
   const stored = localStorage.getItem('crosswire_passkey_session')
   if (!stored) return null
   try {
-    return JSON.parse(stored)
+    const parsed = JSON.parse(stored)
+    const deserialized = deserializeValue(parsed)
+    
+    // Ensure getPublicKey() and other methods are restored if they exist in the deserialized object
+    if (deserialized && deserialized.credential && deserialized.credential.response) {
+      const resp = deserialized.credential.response;
+      
+      // If we have publicKey as Uint8Array but getPublicKey() helper is missing, attach it
+      if (resp.publicKey && !resp.getPublicKey) {
+        resp.getPublicKey = () => resp.publicKey;
+      }
+      if (resp.authenticatorData && !resp.getAuthenticatorData) {
+        resp.getAuthenticatorData = () => resp.authenticatorData;
+      }
+      if (resp.clientDataJSON && !resp.getClientDataJSON) {
+        resp.getClientDataJSON = () => resp.clientDataJSON;
+      }
+      if (resp.attestationObject && !resp.getAttestationObject) {
+        resp.getAttestationObject = () => resp.attestationObject;
+      }
+    }
+    
+    return deserialized
   } catch (err) {
+    console.error('Failed to deserialize stored session:', err)
     return null
   }
 }
@@ -51,7 +139,8 @@ export function getStoredSession(): PasskeySession | null {
 export function setStoredSession(session: PasskeySession | null) {
   if (typeof window === 'undefined') return
   if (session) {
-    localStorage.setItem('crosswire_passkey_session', JSON.stringify(session))
+    const serialized = serializeValue(session)
+    localStorage.setItem('crosswire_passkey_session', JSON.stringify(serialized))
   } else {
     localStorage.removeItem('crosswire_passkey_session')
   }
@@ -162,15 +251,6 @@ export function circleModularWalletConnector() {
         if (method === 'eth_sendTransaction') {
           const [tx] = params || []
           const account = await ensureSmartAccount()
-          const walletClient = createWalletClient({
-            account,
-            chain: arcTestnet,
-            transport: custom({
-              request: async ({ method, params }: any) => {
-                return publicModularClient.request({ method, params } as any)
-              }
-            })
-          })
 
           // 1. Call our server route to validate sponsorship eligibility
           let isSponsored = false
@@ -192,7 +272,7 @@ export function circleModularWalletConnector() {
               if (data.sponsored) {
                 isSponsored = true
                 estimatedSavedUsd = await estimateGasSavings(
-                  publicModularClient,
+                  publicStandardClient,
                   tx.to,
                   tx.data,
                   activeSession!.walletAddress
@@ -203,26 +283,296 @@ export function circleModularWalletConnector() {
             console.error('Sponsorship validation failed, defaulting to user-paid execution:', sponsorErr)
           }
 
-          // 2. Build the transaction call parameter object
-          const txParams: any = {
-            account,
-            to: tx.to as Address,
-            data: tx.data as Hex,
-            value: tx.value ? BigInt(tx.value) : undefined,
-            gas: tx.gas ? BigInt(tx.gas) : undefined,
+          // 1b. Check if the sender has enough native balance to self-fund gas.
+          // If the sender has >= 1 USDC native balance, prefer self-funding to avoid
+          // the ERC-4337 bundler's mempool limit for unstaked paymasters.
+          // Circle's Gas Station paymaster may not be staked on all chains, which
+          // limits pending UserOps to 4 per sender. Self-funding bypasses this entirely.
+          let canSelfFundGas = false
+          try {
+            const senderBalance = await publicStandardClient.getBalance({
+              address: activeSession!.walletAddress as Address
+            })
+            // 1 USDC = 1e18 wei on Arc (native token is USDC with 18 decimals)
+            canSelfFundGas = senderBalance >= 1000000000000000000n // >= 1 USDC
+            console.log(`[ModularWallet] Sender native balance: ${senderBalance}, canSelfFundGas: ${canSelfFundGas}`)
+          } catch (balErr) {
+            console.warn('[ModularWallet] Failed to check sender balance:', balErr)
           }
 
-          // 3. Apply the paymasterService capability if sponsored
-          if (isSponsored) {
-            txParams.capabilities = {
-              paymasterService: {
-                url: getPaymasterUrl()
+          // If account can self-fund, disable paymaster to avoid unstaked paymaster limits
+          const usePaymaster = isSponsored && !canSelfFundGas
+
+          // We wrap the transport to intercept the signed PackedUserOperation
+          let lastSignedUserOp: any = null
+          const interceptingTransport = (opts: any) => {
+            const baseTransport = modularTransport(opts)
+            return {
+              ...baseTransport,
+              async request(args: any): Promise<any> {
+                if (args && args.method === 'eth_sendUserOperation') {
+                  const [userOp] = args.params || []
+                  lastSignedUserOp = userOp
+                  console.log('[ModularWallet] Intercepted signed PackedUserOperation:', userOp)
+                }
+                return await baseTransport.request(args)
               }
             }
           }
 
-          // 4. Send the UserOperation transaction
-          const hash = await walletClient.sendTransaction(txParams)
+          // 2. Instantiate the Bundler Client with intercepting transport
+          const bundlerClient = createBundlerClient({
+            chain: arcTestnet,
+            transport: interceptingTransport
+          })
+
+          // Estimate fees with a minimum floor of 1 Gwei for maxPriorityFeePerGas
+          let maxPriorityFeePerGas: bigint | undefined = undefined
+          let maxFeePerGas: bigint | undefined = undefined
+
+          try {
+            const fees = await publicStandardClient.estimateFeesPerGas()
+            const baseFee = fees.maxFeePerGas && fees.maxPriorityFeePerGas
+              ? fees.maxFeePerGas - fees.maxPriorityFeePerGas
+              : 20000000000n // default base fee fallback
+
+            maxPriorityFeePerGas = fees.maxPriorityFeePerGas !== undefined && fees.maxPriorityFeePerGas > 1000000000n
+              ? fees.maxPriorityFeePerGas
+              : 1000000000n // Force 1 Gwei floor for precheck
+
+            maxFeePerGas = baseFee + maxPriorityFeePerGas
+          } catch (err) {
+            console.error('Failed to estimate fees per gas, using default floors:', err)
+            maxPriorityFeePerGas = 1000000000n
+            maxFeePerGas = 50000000000n
+          }
+
+          // 3. Send the UserOperation transaction with retry logic
+          console.log(`[ModularWallet] Sending UserOperation (paymaster: ${usePaymaster})...`)
+          let userOpHash: Hex | undefined
+          let directSubmitHash: string | undefined
+          try {
+            userOpHash = await bundlerClient.sendUserOperation({
+              account,
+              calls: [{
+                to: tx.to as Address,
+                data: tx.data as Hex,
+                value: tx.value ? BigInt(tx.value) : undefined,
+              }],
+              paymaster: usePaymaster ? true : undefined,
+              maxPriorityFeePerGas,
+              maxFeePerGas
+            })
+          } catch (sendErr: any) {
+            const errMsg = sendErr?.message || sendErr?.shortMessage || ''
+            const isMaxOpsError = errMsg.includes('Max operations') || errMsg.includes('unstaked')
+            const isPaymasterStakeError = errMsg.includes('stake') || errMsg.includes('unstake')
+            
+            if (isPaymasterStakeError && usePaymaster && !isMaxOpsError) {
+              // Retry without paymaster
+              console.warn('[ModularWallet] Paymaster unstaked. Retrying without paymaster...')
+              try {
+                userOpHash = await bundlerClient.sendUserOperation({
+                  account,
+                  calls: [{
+                    to: tx.to as Address,
+                    data: tx.data as Hex,
+                    value: tx.value ? BigInt(tx.value) : undefined,
+                  }],
+                  maxPriorityFeePerGas,
+                  maxFeePerGas
+                })
+                isSponsored = false
+              } catch (retryErr: any) {
+                const retryMsg = retryErr?.message || ''
+                if (retryMsg.includes('Max operations') || retryMsg.includes('unstaked')) {
+                  // Fall through to direct submit
+                  console.warn('[ModularWallet] Bundler mempool full. Falling back to direct submit...')
+                } else {
+                  throw retryErr
+                }
+              }
+            }
+            
+            // Fallback: if bundler mempool is full or blocked estimation, submit directly on-chain
+            if (!userOpHash && (isMaxOpsError || isPaymasterStakeError)) {
+              console.warn('[ModularWallet] Bundler blocked execution. Preparing manual signed UserOperation...')
+              
+              // 1. Attempt manual preparation and signing client-side
+              try {
+                const nonce = await account.getNonce()
+                const isDeployed = await account.isDeployed()
+                let initCode: Hex = '0x'
+                if (!isDeployed) {
+                  const factoryArgs = await account.getFactoryArgs()
+                  initCode = `${factoryArgs.factory}${factoryArgs.factoryData.slice(2)}` as Hex
+                }
+                const callData = await account.encodeCalls([{
+                  to: tx.to as Address,
+                  value: tx.value ? BigInt(tx.value) : undefined,
+                  data: tx.data as Hex
+                }])
+
+                const manualUserOp = {
+                  sender: account.address,
+                  nonce,
+                  initCode,
+                  callData,
+                  callGasLimit: 120000n,
+                  verificationGasLimit: 2000000n,
+                  preVerificationGas: 100000n,
+                  maxFeePerGas: maxFeePerGas || 25000000000n,
+                  maxPriorityFeePerGas: maxPriorityFeePerGas || 1000000000n,
+                  paymasterAndData: '0x' as Hex
+                }
+
+                console.log('[ModularWallet] Requesting WebAuthn signature for manually constructed UserOperation...')
+                const signature = await account.signUserOperation(manualUserOp)
+                
+                const signedUserOp = {
+                  ...manualUserOp,
+                  signature
+                }
+
+                console.warn('[ModularWallet] Submitting manually signed UserOperation directly to EntryPoint...')
+                const serializedUserOp = {
+                  ...signedUserOp,
+                  nonce: signedUserOp.nonce.toString(),
+                  preVerificationGas: signedUserOp.preVerificationGas.toString(),
+                  callGasLimit: signedUserOp.callGasLimit.toString(),
+                  verificationGasLimit: signedUserOp.verificationGasLimit.toString(),
+                  maxFeePerGas: signedUserOp.maxFeePerGas.toString(),
+                  maxPriorityFeePerGas: signedUserOp.maxPriorityFeePerGas.toString(),
+                }
+                const res = await fetch('/api/submit-userop-direct', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ userOp: serializedUserOp })
+                })
+                const result = await res.json()
+                if (res.ok && result.success) {
+                  directSubmitHash = result.txHash
+                  console.log('[ModularWallet] Direct EntryPoint submit succeeded! Tx:', directSubmitHash)
+                } else {
+                  throw new Error(result.error || 'Direct EntryPoint submit failed')
+                }
+              } catch (directErr: any) {
+                console.error('[ModularWallet] Direct EntryPoint submit failed, trying EOA fallback next:', directErr)
+              }
+
+              // 2. As an absolute last-resort backup: EOA fallback
+              if (!directSubmitHash) {
+                console.warn('[ModularWallet] Using EOA proxy fallback...')
+                try {
+                  const res = await fetch('/api/direct-submit', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      to: tx.to,
+                      data: tx.data,
+                      userAddress: activeSession?.walletAddress
+                    })
+                  })
+                  const result = await res.json()
+                  if (res.ok && result.success) {
+                    directSubmitHash = result.txHash
+                    console.log('[ModularWallet] EOA proxy fallback succeeded! Tx:', directSubmitHash)
+                  } else {
+                    throw new Error(result.error || 'EOA proxy fallback failed')
+                  }
+                } catch (directErr: any) {
+                  console.error('[ModularWallet] EOA proxy fallback also failed:', directErr)
+                  throw sendErr // throw original bundler error
+                }
+              }
+            } else if (!userOpHash) {
+              throw sendErr
+            }
+          }
+
+          // If we used direct submit, return the hash immediately
+          if (directSubmitHash) {
+            return directSubmitHash
+          }
+          const confirmedUserOpHash = userOpHash!
+          console.log('[ModularWallet] UserOperation sent! Hash:', confirmedUserOpHash)
+
+          // 4. Wait for the transaction receipt to get the standard transaction hash
+          console.log('[ModularWallet] Waiting for UserOperation receipt (dual-path poll)...')
+          let hash: string
+          try {
+            hash = await new Promise<string>((resolve, reject) => {
+              const start = Date.now()
+              const timeoutMs = 90000 // 90 seconds timeout
+              const intervalMs = 2000 // poll every 2 seconds
+              
+              const interval = setInterval(async () => {
+                const elapsed = Date.now() - start
+                if (elapsed > timeoutMs) {
+                  clearInterval(interval)
+                  reject(new Error(`Timed out waiting for User Operation ${confirmedUserOpHash} after ${timeoutMs / 1000}s`))
+                  return
+                }
+
+                // Path A: Check bundler getUserOperationReceipt
+                try {
+                  const result = await bundlerClient.getUserOperationReceipt({
+                    hash: confirmedUserOpHash
+                  })
+                  if (result && result.receipt?.transactionHash) {
+                    console.log('[ModularWallet] [Path A] Got receipt from bundler:', result.receipt.transactionHash)
+                    clearInterval(interval)
+                    resolve(result.receipt.transactionHash)
+                    return
+                  }
+                } catch (err) {
+                  // Ignore and retry next tick
+                }
+
+                // Path B: Check EntryPoint UserOperationEvent logs on-chain
+                try {
+                  const entryPointAddress = account.entryPoint?.address || '0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789'
+                  const currentBlock = await publicStandardClient.getBlockNumber()
+                  const fromBlock = currentBlock > 50n ? currentBlock - 50n : 0n
+                  
+                  const logs = await publicStandardClient.getLogs({
+                    address: entryPointAddress,
+                    event: {
+                      type: 'event',
+                      name: 'UserOperationEvent',
+                      inputs: [
+                        { type: 'bytes32', name: 'userOpHash', indexed: true },
+                        { type: 'address', name: 'sender', indexed: true },
+                        { type: 'address', name: 'paymaster', indexed: true },
+                        { type: 'uint256', name: 'nonce' },
+                        { type: 'bool', name: 'success' },
+                        { type: 'uint256', name: 'actualGasCost' },
+                        { type: 'uint256', name: 'actualGasUsed' }
+                      ]
+                    },
+                    args: {
+                      userOpHash: confirmedUserOpHash
+                    },
+                    fromBlock,
+                    toBlock: currentBlock
+                  })
+
+                  if (logs.length > 0 && logs[0].transactionHash) {
+                    console.log('[ModularWallet] [Path B] Got transaction hash from EntryPoint logs:', logs[0].transactionHash)
+                    clearInterval(interval)
+                    resolve(logs[0].transactionHash)
+                    return
+                  }
+                } catch (err) {
+                  // Ignore and retry next tick
+                }
+              }, intervalMs)
+            })
+            console.log('[ModularWallet] UserOperation confirmed! Tx Hash:', hash)
+          } catch (err) {
+            console.error('[ModularWallet] Error waiting for UserOperation receipt:', err)
+            throw err
+          }
 
           // 5. If sponsored, record the gas savings database entry on the server
           if (isSponsored) {
@@ -265,10 +615,14 @@ export function circleModularWalletConnector() {
           }
         }
 
-        config.emitter.emit('change', {
-          accounts: [activeSession.walletAddress],
-          chainId: arcTestnet.id
-        })
+        try {
+          config.emitter.emit('change', {
+            accounts: [activeSession.walletAddress],
+            chainId: arcTestnet.id
+          })
+        } catch (err) {
+          console.warn('Emitter emit change failed:', err)
+        }
 
         return {
           accounts: [activeSession.walletAddress],
@@ -280,7 +634,11 @@ export function circleModularWalletConnector() {
         activeSession = null
         smartAccountInstance = null
         setStoredSession(null)
-        config.emitter.emit('disconnect')
+        try {
+          config.emitter.emit('disconnect')
+        } catch (err) {
+          console.warn('Emitter emit disconnect failed:', err)
+        }
       },
 
       async getAccounts() {
@@ -306,23 +664,39 @@ export function circleModularWalletConnector() {
       },
 
       onConnect(connectInfo: any) {
-        config.emitter.emit('connect', connectInfo)
+        try {
+          config.emitter.emit('connect', connectInfo)
+        } catch (err) {
+          console.warn('Emitter emit connect failed:', err)
+        }
       },
 
       onAccountsChanged(accounts: any) {
         if (accounts.length === 0) {
           this.disconnect()
         } else {
-          config.emitter.emit('change', { accounts: accounts as Address[] })
+          try {
+            config.emitter.emit('change', { accounts: accounts as Address[] })
+          } catch (err) {
+            console.warn('Emitter emit change failed:', err)
+          }
         }
       },
 
       onChainChanged(chainId: any) {
-        config.emitter.emit('change', { chainId: Number(chainId) })
+        try {
+          config.emitter.emit('change', { chainId: Number(chainId) })
+        } catch (err) {
+          console.warn('Emitter emit change failed:', err)
+        }
       },
 
       onDisconnect() {
-        config.emitter.emit('disconnect')
+        try {
+          config.emitter.emit('disconnect')
+        } catch (err) {
+          console.warn('Emitter emit disconnect failed:', err)
+        }
       }
     } as any
   })

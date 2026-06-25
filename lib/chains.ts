@@ -18,7 +18,7 @@ export const CCTP_CHAINS: Record<string, ChainConfig> = {
     tokenMessenger: '0xb43db544E2c27092c107639Ad201b3dEfAbcF192',
     messageTransmitter: '0xE737e5cEBEEBa77EFE34D4aa090756590b1CE275',
     explorerUrl: 'https://sepolia.etherscan.io',
-    rpcUrl: 'https://rpc.ankr.com/eth_sepolia',
+    rpcUrl: 'https://ethereum-sepolia-rpc.publicnode.com',
   },
   Base_Sepolia: {
     id: 84532,
