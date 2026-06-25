@@ -7,6 +7,7 @@ import { runSwarm } from './agent-swarm'
 import { executeProgrammaticTransfer } from './dev-wallet'
 import { AppKit } from '@circle-fin/app-kit'
 import { createViemAdapterFromPrivateKey } from '@circle-fin/adapter-viem-v2'
+import { parseUnits } from 'viem'
 
 // Define the type for tools
 export interface ToolDefinition {
@@ -398,8 +399,8 @@ export async function executeTool(name: string, args: any, userAddress: string):
             id: randomId,
             sender: userAddrLower,
             recipient: payeeAddr.toLowerCase(),
-            amount: invoice.amount,
-            feeAmount: '0.01',
+            amount: parseUnits(invoice.amount, 6).toString(),
+            feeAmount: parseUnits('0.01', 6).toString(),
             refHash: mockTxHash,
             purposeCode: 1,
             memo: invoice.memo || 'On-chain Invoice Payment',
@@ -583,8 +584,8 @@ export async function executeTool(name: string, args: any, userAddress: string):
           id: randomId,
           sender: userAddrLower,
           recipient: schedule.recipient.toLowerCase(),
-          amount: schedule.amount,
-          feeAmount: '0.01',
+          amount: parseUnits(schedule.amount, 6).toString(),
+          feeAmount: parseUnits('0.01', 6).toString(),
           refHash: mockTx,
           purposeCode: schedule.purposeCode,
           memo: schedule.memo || 'Scheduled Recurring Wire',
