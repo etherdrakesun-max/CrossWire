@@ -53,3 +53,8 @@ next-env.d.ts
 *.db-journal
 prisma/*.db
 prisma/*.db-journal
+
+# Dev scratch files & test scripts
+scratch
+scratch_*.js
+scripts/test_*

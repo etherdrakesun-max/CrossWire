@@ -230,6 +230,90 @@ model NotificationSubscription {
   createdAt  DateTime @default(now())
 }
 
+model AgentGoal {
+  id          String      @id @default(uuid())
+  userAddress String
+  goal        String
+  provider    String      // "openai" | "deepseek"
+  status      String      @default("PENDING") // PENDING, RUNNING, COMPLETED, FAILED
+  summary     String      @default("")
+  steps       AgentStep[]
+  createdAt   DateTime    @default(now())
+}
+
+model AgentStep {
+  id          String    @id @default(uuid())
+  goalId      String
+  goal        AgentGoal @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  stepNumber  Int
+  toolName    String
+  description String
+  status      String    @default("PENDING") // PENDING, RUNNING, SUCCESS, FAILED
+  result      String    @default("") // JSON string of output
+  reasoning   String    @default("")
+  createdAt   DateTime  @default(now())
+}
+
+model AgentMemory {
+  id          String   @id @default(uuid())
+  userAddress String
+  key         String
+  value       String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Conversation {
+  id          String        @id @default(uuid())
+  userAddress String
+  title       String        @default("New Conversation")
+  status      String        @default("ACTIVE") // ACTIVE, ARCHIVED
+  messages    ChatMessage[]
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+}
+
+model ChatMessage {
+  id             String       @id @default(uuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  role           String       // user, assistant, system, tool
+  content        String
+  toolName       String?
+  toolResult     String?
+  metadata       String       @default("{}")
+  createdAt      DateTime     @default(now())
+}
+
+model SavedWorkflow {
+  id          String   @id @default(uuid())
+  userAddress String
+  name        String
+  description String   @default("")
+  trigger     String   @default("manual") // manual, schedule, event
+  schedule    String?  // cron expression for scheduled workflows
+  steps       String   @default("[]") // JSON array of workflow steps
+  status      String   @default("ACTIVE") // ACTIVE, PAUSED, ARCHIVED
+  lastRunAt   DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Automation {
+  id          String   @id @default(uuid())
+  userAddress String
+  workflowId  String?
+  name        String
+  type        String   // monitor, scheduler, trigger
+  config      String   @default("{}") // JSON config for the automation
+  status      String   @default("RUNNING") // RUNNING, PAUSED, COMPLETED, FAILED
+  lastOutput  String   @default("")
+  runCount    Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+
 
 
 

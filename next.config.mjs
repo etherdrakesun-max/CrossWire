@@ -20,6 +20,12 @@ const nextConfig = {
     workerThreads: false,
     cpus: 1,
   },
+  async redirects() {
+    return [
+      // AI Workspace becomes the default entry point for logged-in users
+      // Landing page (/) remains the marketing page
+    ]
+  },
 }
 
 export default nextConfig
