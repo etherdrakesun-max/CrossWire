@@ -73,14 +73,26 @@ export default function DashboardPage() {
           if (statsData) {
             let wires = statsData.recentWires || []
             let count = BigInt(statsData.wireCount || '0')
-            let volume = BigInt(statsData.totalVolume || '0')
+            let volume = (() => {
+              const rawVol = statsData.totalVolume || '0'
+              if (rawVol.includes('.')) {
+                return BigInt(Math.round(parseFloat(rawVol) * 1_000_000))
+              }
+              return BigInt(rawVol)
+            })()
 
             if (isSandbox) {
               const sWires = getSandboxWires()
               // Merge and format
               wires = [...sWires, ...wires]
               count += BigInt(sWires.length)
-              const sVol = sWires.reduce((acc, w) => acc + BigInt(w.amount), 0n)
+              const sVol = sWires.reduce((acc, w) => {
+                const amtStr = (w.amount || '0').toString()
+                if (amtStr.includes('.')) {
+                  return acc + BigInt(Math.round(parseFloat(amtStr) * 1_000_000))
+                }
+                return acc + BigInt(amtStr)
+              }, 0n)
               volume += sVol
             }
 
@@ -405,7 +417,17 @@ export default function DashboardPage() {
                       <td>
                         <strong>
                           {rawAmount
-                            ? `$${Number(formatUnits(BigInt(rawAmount), 6)).toLocaleString('en-US', { minimumFractionDigits: 2 })}`
+                            ? (() => {
+                                try {
+                                  const rawStr = rawAmount.toString()
+                                  if (rawStr.includes('.')) {
+                                    return `$${Number(rawStr).toLocaleString('en-US', { minimumFractionDigits: 2 })}`
+                                  }
+                                  return `$${Number(formatUnits(BigInt(rawAmount), 6)).toLocaleString('en-US', { minimumFractionDigits: 2 })}`
+                                } catch {
+                                  return '$0.00'
+                                }
+                              })()
                             : '—'}
                         </strong>
                         <span className="text-muted text-xs ml-1">USDC</span>

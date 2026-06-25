@@ -83,7 +83,17 @@ export default function LandingPage() {
           const data = await res.json()
           setDbStats({
             wireCount: data.wireCount || '0',
-            totalVolume: formatUnits(BigInt(data.totalVolume || '0'), 6),
+            totalVolume: (() => {
+              const rawVol = data.totalVolume || '0'
+              try {
+                if (rawVol.includes('.')) {
+                  return formatUnits(BigInt(Math.round(parseFloat(rawVol) * 1_000_000)), 6)
+                }
+                return formatUnits(BigInt(rawVol), 6)
+              } catch {
+                return '0.00'
+              }
+            })(),
             recentWires: data.recentWires || []
           })
         }
@@ -942,7 +952,18 @@ export default function LandingPage() {
                     <div className="receipt-item">
                       <span className="r-label">Settled Amount</span>
                       <strong>
-                        ${Number(formatUnits(BigInt(firstWire.args?.amount || firstWire.amount || '0'), 6)).toLocaleString('en-US', { minimumFractionDigits: 2 })} USDC
+                        ${(() => {
+                          const rawAmt = firstWire.args?.amount || firstWire.amount || '0'
+                          try {
+                            const rawStr = rawAmt.toString()
+                            if (rawStr.includes('.')) {
+                              return parseFloat(rawStr).toLocaleString('en-US', { minimumFractionDigits: 2 })
+                            }
+                            return Number(formatUnits(BigInt(rawAmt), 6)).toLocaleString('en-US', { minimumFractionDigits: 2 })
+                          } catch {
+                            return '0.00'
+                          }
+                        })()} USDC
                       </strong>
                     </div>
                     <div className="receipt-item">

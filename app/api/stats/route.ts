@@ -16,9 +16,17 @@ export async function GET() {
       where: { status: 'EXECUTED' }
     })
     
-    let totalVolume = 0
+    let totalVolume = 0n
     for (const w of executedWires) {
-      totalVolume += parseFloat(w.amount) || 0
+      try {
+        if (w.amount.includes('.')) {
+          totalVolume += BigInt(Math.round(parseFloat(w.amount) * 1_000_000))
+        } else {
+          totalVolume += BigInt(w.amount || '0')
+        }
+      } catch (err) {
+        console.error(`Failed to parse wire amount for wire ID ${w.id}:`, err)
+      }
     }
 
     const recentWires = await prisma.wire.findMany({

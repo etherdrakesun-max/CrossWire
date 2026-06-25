@@ -45,7 +45,12 @@ export default function HistoryPage() {
           wireId: wire.id.toString(),
           sender: wire.sender,
           recipient: wire.recipient,
-          amount: formatUnits(BigInt(wire.amount), 6),
+          amount: formatUnits(
+            (wire.amount || '0').toString().includes('.')
+              ? BigInt(Math.round(parseFloat(wire.amount) * 1_000_000))
+              : BigInt(wire.amount || '0'),
+            6
+          ),
           reference: wire.refHash,
           txHash: wire.txHash,
           blockNumber: (wire.blockNumber || 0).toString(),

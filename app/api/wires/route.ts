@@ -61,7 +61,9 @@ export async function GET(request: NextRequest) {
       const maxBig = maxAmount ? parseUnits(maxAmount, USDC_DECIMALS) : null
 
       wires = wires.filter((wire) => {
-        const amtBig = BigInt(wire.amount)
+        const amtBig = wire.amount.includes('.')
+          ? BigInt(Math.round(parseFloat(wire.amount) * 1_000_000))
+          : BigInt(wire.amount)
         if (minBig !== null && amtBig < minBig) return false
         if (maxBig !== null && amtBig > maxBig) return false
         return true
