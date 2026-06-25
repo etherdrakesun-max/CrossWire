@@ -13,7 +13,8 @@ export async function middleware(request: NextRequest) {
     const isPublicApi = 
       pathname.startsWith('/api/stats') || 
       pathname.startsWith('/api/auth') || 
-      pathname.startsWith('/api/sponsor')
+      pathname.startsWith('/api/sponsor') ||
+      pathname.startsWith('/api/circle-proxy')
 
     if (isPublicApi) {
       return NextResponse.next()
