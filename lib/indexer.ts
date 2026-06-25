@@ -23,8 +23,9 @@ export async function syncEvents() {
   // Get current sync state
   let syncState = await prisma.syncState.findUnique({ where: { id: 1 } })
   if (!syncState) {
+    const defaultStartBlock = Number(process.env.NEXT_PUBLIC_INDEXER_START_BLOCK || '0')
     syncState = await prisma.syncState.create({
-      data: { id: 1, lastBlockNumber: 0 }
+      data: { id: 1, lastBlockNumber: defaultStartBlock }
     })
   }
 
