@@ -30,6 +30,16 @@ self.addEventListener('activate', event => {
 })
 
 self.addEventListener('fetch', event => {
+  // Only intercept same-origin GET requests; bypass external APIs (Circle, RPC) and POST requests
+  if (event.request.method !== 'GET' || !event.request.url.startsWith(self.location.origin)) {
+    return
+  }
+
+  // Bypass internal backend API routes and Next.js hot-reloads
+  if (event.request.url.includes('/api/') || event.request.url.includes('/_next/')) {
+    return
+  }
+
   if (event.request.mode === 'navigate') {
     event.respondWith(
       fetch(event.request).catch(() => {
