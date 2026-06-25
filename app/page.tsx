@@ -229,6 +229,12 @@ export default function LandingPage() {
             </Link>
           </div>
 
+          {/* Glowing Product Preview Showcase */}
+          <div className="hero-product-preview-container animate-fade-in">
+            <div className="preview-glow" />
+            <img src="/screenshots/dashboard.png" alt="CrossWire Dashboard" className="hero-preview-img" />
+          </div>
+
           {/* Hero trust indicators */}
           <div className="hero-trust-indicators">
             <div className="trust-indicator">
@@ -587,184 +593,129 @@ export default function LandingPage() {
               </button>
 
               <button 
-                onClick={() => setActiveTab('creator')} 
-                className={`explorer-tab-btn ${activeTab === 'creator' ? 'active' : ''}`}
+                onClick={() => setActiveTab('workspace')} 
+                className={`explorer-tab-btn ${activeTab === 'workspace' ? 'active' : ''}`}
+              >
+                <Terminal size={16} />
+                <div className="tab-btn-text">
+                  <strong>AI Agent Workspace</strong>
+                  <span>Agent swarm, chat control, compliance approvals</span>
+                </div>
+              </button>
+
+              <button 
+                onClick={() => setActiveTab('send_payment')} 
+                className={`explorer-tab-btn ${activeTab === 'send_payment' ? 'active' : ''}`}
               >
                 <Send size={16} />
                 <div className="tab-btn-text">
                   <strong>Transfer Creator</strong>
-                  <span>Initiate single or batch payments</span>
+                  <span>Initiate single cross-chain stablecoin wires</span>
                 </div>
               </button>
 
               <button 
-                onClick={() => setActiveTab('governance')} 
-                className={`explorer-tab-btn ${activeTab === 'governance' ? 'active' : ''}`}
+                onClick={() => setActiveTab('invoices')} 
+                className={`explorer-tab-btn ${activeTab === 'invoices' ? 'active' : ''}`}
               >
-                <Shield size={16} />
+                <FileText size={16} />
                 <div className="tab-btn-text">
-                  <strong>Approval Workflow</strong>
-                  <span>On-chain multi-sig signatory rules</span>
+                  <strong>Invoice Ledger</strong>
+                  <span>Manage outgoing requests, pull-payment status</span>
                 </div>
               </button>
 
               <button 
-                onClick={() => setActiveTab('compliance')} 
-                className={`explorer-tab-btn ${activeTab === 'compliance' ? 'active' : ''}`}
+                onClick={() => setActiveTab('payment_schedules')} 
+                className={`explorer-tab-btn ${activeTab === 'payment_schedules' ? 'active' : ''}`}
               >
-                <UserCheck size={16} />
+                <Activity size={16} />
                 <div className="tab-btn-text">
-                  <strong>Audit Ledger</strong>
-                  <span>Sanctions screening and compliance logs</span>
+                  <strong>Payment Schedules</strong>
+                  <span>Set up recurring wires and payroll cycles</span>
+                </div>
+              </button>
+
+              <button 
+                onClick={() => setActiveTab('treasury_fx')} 
+                className={`explorer-tab-btn ${activeTab === 'treasury_fx' ? 'active' : ''}`}
+              >
+                <Coins size={16} />
+                <div className="tab-btn-text">
+                  <strong>Treasury & FX Swap</strong>
+                  <span>Unified balance across chains and spot trading</span>
+                </div>
+              </button>
+
+              <button 
+                onClick={() => setActiveTab('volume_analytics')} 
+                className={`explorer-tab-btn ${activeTab === 'volume_analytics' ? 'active' : ''}`}
+              >
+                <TrendingUp size={16} />
+                <div className="tab-btn-text">
+                  <strong>Volume Analytics</strong>
+                  <span>Flow tracking, fee details, and purpose reports</span>
+                </div>
+              </button>
+
+              <button 
+                onClick={() => setActiveTab('invoice_receipt')} 
+                className={`explorer-tab-btn ${activeTab === 'invoice_receipt' ? 'active' : ''}`}
+              >
+                <CheckCircle2 size={16} />
+                <div className="tab-btn-text">
+                  <strong>Secure Receipts</strong>
+                  <span>On-chain pull-payment receipt and audit trace</span>
                 </div>
               </button>
             </div>
 
-            {/* Simulated UI Screens */}
+            {/* Screenshots Display */}
             <div className="explorer-screen-view">
-              {activeTab === 'dashboard' && (
-                <div className="explorer-ui-mockup animate-fade-in">
-                  <div className="mockup-header">
-                    <span className="mockup-title">Treasury Float Overview</span>
-                    <span className="mockup-badge">Arc Testnet</span>
-                  </div>
-                  <div className="mockup-body">
-                    <div className="mockup-metrics-row">
-                      <div className="m-metric">
-                        <span className="m-label">Liquid Float</span>
-                        <span className="m-value">$384,920.00 <span className="m-unit">USDC</span></span>
-                      </div>
-                      <div className="m-metric">
-                        <span className="m-label">Active Signatories</span>
-                        <span className="m-value">2 of 3 Verified</span>
-                      </div>
-                      <div className="m-metric">
-                        <span className="m-label">Settlement Success</span>
-                        <span className="m-value" style={{ color: 'var(--success)' }}>100% (Last 30 Days)</span>
-                      </div>
-                    </div>
-                    
-                    <div className="mockup-table-container">
-                      <span className="table-subtitle">Pending Corporate Approvals</span>
-                      <table className="mockup-table">
-                        <thead>
-                          <tr>
-                            <th>Wire ID</th>
-                            <th>Recipient</th>
-                            <th>Amount</th>
-                            <th>Status</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          <tr>
-                            <td>#1094</td>
-                            <td className="text-mono">0x4a9d...21b8</td>
-                            <td>$150,000.00 USDC</td>
-                            <td><span className="m-badge-status yellow">Awaiting Sig 2</span></td>
-                          </tr>
-                          <tr>
-                            <td>#1093</td>
-                            <td className="text-mono">0x81e3...a009</td>
-                            <td>$45,000.00 USDC</td>
-                            <td><span className="m-badge-status green">Approved</span></td>
-                          </tr>
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
+              <div className="mockup-header">
+                <div className="terminal-dots" style={{ display: 'flex', gap: '6px' }}>
+                  <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#ff5f56' }}></span>
+                  <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#ffbd2e' }}></span>
+                  <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#27c93f' }}></span>
                 </div>
-              )}
-
-              {activeTab === 'creator' && (
-                <div className="explorer-ui-mockup animate-fade-in">
-                  <div className="mockup-header">
-                    <span className="mockup-title">Create Single Settlement Wire</span>
-                  </div>
-                  <div className="mockup-body">
-                    <div className="mockup-form">
-                      <div className="mockup-form-row">
-                        <div className="mockup-form-group">
-                          <label>Destination Wallet (Address)</label>
-                          <input type="text" value="0x71C7656EC7ab88b098defB751B7401B5f6d8976F" disabled className="m-input" />
-                        </div>
-                      </div>
-                      <div className="mockup-form-row">
-                        <div className="mockup-form-group">
-                          <label>Settlement Amount (USDC)</label>
-                          <input type="text" value="25,000.00" disabled className="m-input" />
-                        </div>
-                        <div className="mockup-form-group">
-                          <label>ISO Purpose Code</label>
-                          <input type="text" value="GDDS - Global Supplier Distribution" disabled className="m-input" />
-                        </div>
-                      </div>
-                      <div className="mockup-form-info">
-                        <Info size={14} />
-                        <span>This transfer is within your daily individual limit of $50,000 USDC. No secondary approval required.</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {activeTab === 'governance' && (
-                <div className="explorer-ui-mockup animate-fade-in">
-                  <div className="mockup-header">
-                    <span className="mockup-title">On-Chain Governance Approval Engine</span>
-                  </div>
-                  <div className="mockup-body">
-                    <div className="governance-rule-card">
-                      <div className="rule-header">
-                        <span className="rule-name">Threshold Rule: Wires &gt; $10,000 USDC</span>
-                        <span className="rule-status active">ACTIVE</span>
-                      </div>
-                      <p className="rule-desc">Requires at least 2 authorized signatory approvals before the smart contract will execute the CCTP mint call.</p>
-                      
-                      <div className="signatory-list">
-                        <div className="signatory-row">
-                          <CheckCircle2 size={16} className="text-success" />
-                          <span>Primary Officer (0x1034...34df) — Approved</span>
-                        </div>
-                        <div className="signatory-row">
-                          <Activity size={16} className="text-warning" />
-                          <span>Secondary Officer (0x4b77...fe01) — Pending Signatory Input</span>
-                        </div>
-                        <div className="signatory-row">
-                          <Lock size={16} className="text-muted" />
-                          <span>Backup Officer (0x9a88...c721) — Awaiting Queue</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {activeTab === 'compliance' && (
-                <div className="explorer-ui-mockup animate-fade-in">
-                  <div className="mockup-header">
-                    <span className="mockup-title">Compliance Scan Logs & Sanctions Registry</span>
-                  </div>
-                  <div className="mockup-body">
-                    <div className="compliance-log-entries">
-                      <div className="compliance-log-line">
-                        <span className="timestamp">14:02:11</span>
-                        <span className="status-badge pass">PASS</span>
-                        <span>PEP Screening checked for sender (0x10c4...71b8)</span>
-                      </div>
-                      <div className="compliance-log-line">
-                        <span className="timestamp">14:02:12</span>
-                        <span className="status-badge pass">PASS</span>
-                        <span>OFAC Sanctions List scan completed. 0 matches found.</span>
-                      </div>
-                      <div className="compliance-log-line">
-                        <span className="timestamp">14:02:13</span>
-                        <span className="status-badge info">INFO</span>
-                        <span>ISO 20022 purpose metadata hash verified: 0x8aef72c...</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
+                <span className="mockup-title">
+                  {activeTab === 'dashboard' && 'Corporate Dashboard'}
+                  {activeTab === 'workspace' && 'AI Agent Workspace'}
+                  {activeTab === 'send_payment' && 'Transfer Routing Creator'}
+                  {activeTab === 'invoices' && 'Invoice Ledger & Outgoing Requests'}
+                  {activeTab === 'payment_schedules' && 'Recurring & Scheduled Wires'}
+                  {activeTab === 'treasury_fx' && 'Treasury Float & StableFX Swap'}
+                  {activeTab === 'volume_analytics' && 'Institutional Volume Analytics'}
+                  {activeTab === 'invoice_receipt' && 'Secure Pull-Payment Receipt'}
+                </span>
+                <span className="mockup-badge">Arc Testnet Live</span>
+              </div>
+              <div className="mockup-image-container">
+                {activeTab === 'dashboard' && (
+                  <img src="/screenshots/dashboard.png" alt="Corporate Dashboard" className="mockup-screenshot animate-fade-in" />
+                )}
+                {activeTab === 'workspace' && (
+                  <img src="/screenshots/ai_workspace.png" alt="AI Agent Workspace" className="mockup-screenshot animate-fade-in" />
+                )}
+                {activeTab === 'send_payment' && (
+                  <img src="/screenshots/send_payment.png" alt="Transfer Routing Creator" className="mockup-screenshot animate-fade-in" />
+                )}
+                {activeTab === 'invoices' && (
+                  <img src="/screenshots/invoices.png" alt="Invoice Ledger" className="mockup-screenshot animate-fade-in" />
+                )}
+                {activeTab === 'payment_schedules' && (
+                  <img src="/screenshots/payment_schedules.png" alt="Payment Schedules" className="mockup-screenshot animate-fade-in" />
+                )}
+                {activeTab === 'treasury_fx' && (
+                  <img src="/screenshots/treasury_fx.png" alt="Treasury & FX Swap" className="mockup-screenshot animate-fade-in" />
+                )}
+                {activeTab === 'volume_analytics' && (
+                  <img src="/screenshots/volume_analytics.png" alt="Volume Analytics" className="mockup-screenshot animate-fade-in" />
+                )}
+                {activeTab === 'invoice_receipt' && (
+                  <img src="/screenshots/invoice_receipt.png" alt="Secure Receipts" className="mockup-screenshot animate-fade-in" />
+                )}
+              </div>
             </div>
           </div>
         </section>
@@ -1809,6 +1760,45 @@ export default function LandingPage() {
           text-transform: uppercase;
         }
 
+        /* Hero Preview Showcase */
+        .hero-product-preview-container {
+          position: relative;
+          max-width: 1000px;
+          margin: 48px auto 0;
+          padding: 6px;
+          background: linear-gradient(135deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.02));
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          border-radius: 12px;
+          box-shadow: 0 30px 60px -15px rgba(0, 0, 0, 0.8), 0 0 100px -20px rgba(59, 130, 246, 0.2);
+          transform: perspective(1000px) rotateX(4deg);
+          transition: transform 0.5s ease, box-shadow 0.5s ease;
+        }
+
+        .hero-product-preview-container:hover {
+          transform: perspective(1000px) rotateX(0deg) translateY(-4px);
+          box-shadow: 0 30px 70px -10px rgba(0, 0, 0, 0.9), 0 0 120px -10px rgba(59, 130, 246, 0.35);
+        }
+
+        .hero-preview-img {
+          width: 100%;
+          height: auto;
+          border-radius: 8px;
+          display: block;
+          border: 1px solid rgba(0, 0, 0, 0.5);
+        }
+
+        .preview-glow {
+          position: absolute;
+          top: -20px;
+          left: -20px;
+          right: -20px;
+          bottom: -20px;
+          background: radial-gradient(circle, rgba(59, 130, 246, 0.12) 0%, transparent 70%);
+          z-index: -1;
+          filter: blur(10px);
+          pointer-events: none;
+        }
+
         /* Product Explorer Section */
         .product-explorer-section {
           max-width: 1100px;
@@ -1834,14 +1824,58 @@ export default function LandingPage() {
         .explorer-tabs {
           display: flex;
           flex-direction: column;
-          gap: 12px;
+          gap: 10px;
+          max-height: 520px;
+          overflow-y: auto;
+          padding-right: 6px;
+        }
+
+        /* Custom scrollbar for explorer tabs */
+        .explorer-tabs::-webkit-scrollbar {
+          width: 4px;
+        }
+        .explorer-tabs::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        .explorer-tabs::-webkit-scrollbar-thumb {
+          background: rgba(255, 255, 255, 0.1);
+          border-radius: 2px;
+        }
+        .explorer-tabs::-webkit-scrollbar-thumb:hover {
+          background: rgba(255, 255, 255, 0.2);
+        }
+
+        .mockup-image-container {
+          position: relative;
+          width: 100%;
+          flex: 1;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          background: #11131a;
+          border-radius: 0 0 6px 6px;
+          overflow: hidden;
+          padding: 16px;
+        }
+
+        .mockup-screenshot {
+          max-width: 100%;
+          height: auto;
+          border-radius: 4px;
+          border: 1px solid rgba(255, 255, 255, 0.05);
+          box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+          transition: transform 0.3s ease;
+        }
+
+        .mockup-screenshot:hover {
+          transform: scale(1.015);
         }
 
         .explorer-tab-btn {
           display: flex;
-          align-items: flex-start;
-          gap: 16px;
-          padding: 16px;
+          align-items: center;
+          gap: 12px;
+          padding: 12px 14px;
           border: 1px solid var(--border);
           border-radius: 6px;
           background: var(--surface);
