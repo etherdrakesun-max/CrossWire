@@ -18,18 +18,22 @@ import {
 import { toWebAuthnAccount, createBundlerClient } from 'viem/account-abstraction'
 import { estimateGasSavings, getPaymasterUrl } from './paymaster'
 
-const CLIENT_KEY = process.env.NEXT_PUBLIC_CIRCLE_CLIENT_KEY || 'demo_client_key'
-let rawUrl = process.env.NEXT_PUBLIC_CIRCLE_CLIENT_URL || 'https://modular-sdk.circle.com/v1/rpc/w3s'
+let rawKey = process.env.NEXT_PUBLIC_CIRCLE_CLIENT_KEY || 'demo_client_key'
+// Remove quotes, whitespaces, or other formatting artifacts
+rawKey = rawKey.trim().replace(/^["']|["']$/g, '')
 
-// Normalize the Client URL: Circle Modular Wallets RPC base URL must be exactly https://modular-sdk.circle.com/v1/rpc/w3s
+let rawUrl = process.env.NEXT_PUBLIC_CIRCLE_CLIENT_URL || 'https://modular-sdk.circle.com/v1/rpc/w3s'
+rawUrl = rawUrl.trim().replace(/^["']|["']$/g, '')
 rawUrl = rawUrl.replace(/\/buidl\/?$/, '')
 rawUrl = rawUrl.replace(/\/$/, '')
+
+const CLIENT_KEY = rawKey
 const CLIENT_URL = rawUrl
 
 // Safely initialize the transports to prevent build-time crashes (e.g. on Vercel)
-const dummyTransport = () => custom({
+const dummyTransport = (reason: string) => custom({
   request: async () => {
-    throw new Error('Circle transport is uninitialized or invalid')
+    throw new Error(`Circle transport is uninitialized or invalid. Reason: ${reason}`)
   }
 })
 
@@ -37,18 +41,24 @@ let passkeyTransportTmp: any
 let modularTransportTmp: any
 
 try {
+  if (CLIENT_KEY === 'demo_client_key') {
+    throw new Error('Placeholder NEXT_PUBLIC_CIRCLE_CLIENT_KEY is active. Please add your actual key to Vercel env settings.')
+  }
   passkeyTransportTmp = toPasskeyTransport(CLIENT_URL, CLIENT_KEY)
-} catch (err) {
+} catch (err: any) {
   console.warn('⚠️ toPasskeyTransport failed to initialize, using fallback:', err)
-  passkeyTransportTmp = dummyTransport()
+  passkeyTransportTmp = dummyTransport(err?.message || 'toPasskeyTransport failed')
 }
 
 try {
+  if (CLIENT_KEY === 'demo_client_key') {
+    throw new Error('Placeholder NEXT_PUBLIC_CIRCLE_CLIENT_KEY is active. Please add your actual key to Vercel env settings.')
+  }
   const modularUrl = `${CLIENT_URL}/arcTestnet`
   modularTransportTmp = toModularTransport(modularUrl, CLIENT_KEY)
-} catch (err) {
+} catch (err: any) {
   console.warn('⚠️ toModularTransport failed to initialize, using fallback:', err)
-  modularTransportTmp = dummyTransport()
+  modularTransportTmp = dummyTransport(err?.message || 'toModularTransport failed')
 }
 
 export const passkeyTransport = passkeyTransportTmp
