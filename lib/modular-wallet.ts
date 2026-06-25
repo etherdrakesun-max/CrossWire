@@ -19,10 +19,18 @@ import { toWebAuthnAccount, createBundlerClient } from 'viem/account-abstraction
 import { estimateGasSavings, getPaymasterUrl } from './paymaster'
 
 let rawKey = process.env.NEXT_PUBLIC_CIRCLE_CLIENT_KEY || 'demo_client_key'
+let rawUrl = process.env.NEXT_PUBLIC_CIRCLE_CLIENT_URL || 'https://modular-sdk.circle.com/v1/rpc/w3s'
+
+// Auto-detect if variables are swapped (e.g. key saved in URL field and vice-versa)
+if (rawKey.trim().startsWith('http') && !rawUrl.trim().startsWith('http')) {
+  console.warn('⚠️ Auto-detected swapped Circle Client Key and URL environment variables. Swapping them back programmatically.')
+  const temp = rawKey
+  rawKey = rawUrl
+  rawUrl = temp
+}
+
 // Remove quotes, whitespaces, or other formatting artifacts
 rawKey = rawKey.trim().replace(/^["']|["']$/g, '')
-
-let rawUrl = process.env.NEXT_PUBLIC_CIRCLE_CLIENT_URL || 'https://modular-sdk.circle.com/v1/rpc/w3s'
 rawUrl = rawUrl.trim().replace(/^["']|["']$/g, '')
 rawUrl = rawUrl.replace(/\/buidl\/?$/, '')
 rawUrl = rawUrl.replace(/\/$/, '')
